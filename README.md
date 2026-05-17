@@ -252,6 +252,12 @@ training.TOTAL_TIMESTEPS = 500000
 
 ---
 
+## License
+
+This project is licensed under a **Proprietary License**. See the [LICENSE](LICENSE) file for more details.
+
+---
+
 
 <div align="center">
 <sub>Built with SUMO · Stable-Baselines3 · Gymnasium · TraCI</sub>
