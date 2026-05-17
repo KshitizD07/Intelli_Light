@@ -1,12 +1,16 @@
+# LICENSE
+
 Copyright (c) 2026 Kshitiz Dixit and Harshit Singh. All rights reserved.
 
-PROPRIETARY AND CONFIDENTIAL
+## Proprietary & Experimental
 
-This software and documentation are the confidential and proprietary information 
-of Kshitiz Dixit and Harshit Singh ("Confidential Information"). You shall not 
-disclose such Confidential Information and shall use it only in accordance with 
-the terms of the license agreement you entered into with Kshitiz Dixit and 
-Harshit Singh.
+This project, **Intelli-Light**, is an experimental research prototype. It is currently provided for review and educational purposes only.
 
-Unauthorized copying, distribution, or use of this software, via any medium, 
-is strictly prohibited.
+### Terms of Use
+
+*   **Ownership:** All rights, title, and interest in and to the Software remain with Kshitiz Dixit and Harshit Singh.
+*   **No Redistribution:** You may not redistribute, sub-license, or sell this software or its source code in any form, via any medium.
+*   **No Commercial Use:** Commercial use of this software is strictly prohibited without prior written consent from the authors.
+*   **Experimental Status:** This software is provided "AS IS", without warranty of any kind, express or implied. The authors shall not be liable for any claim, damages, or other liability arising from the use of this software.
+
+For inquiries regarding licensing or collaboration, please contact the authors.
