@@ -422,6 +422,125 @@ class RLController(TrafficController):
         return "IntelliLight-RL"
 
 
+class SurtracLikeController(TrafficController):
+    """
+    Surtrac-Like (Schedule-Driven) Traffic Controller.
+
+    A simplified schedule-driven controller designed for apples-to-apples 
+    comparison in the ILPS Per-Phase environment. It estimates the size of the 
+    approaching "cluster" (currently queued vehicles + near arrivals) for the 
+    active phase and schedules just enough green time to clear it, minimizing delay.
+    """
+
+    def __init__(self, discharge_rate: float = 2.5, min_green: int = 15, max_green: int = 60):
+        """
+        Initialize Surtrac-like controller.
+
+        Args:
+            discharge_rate: Seconds required to discharge one vehicle per lane.
+            min_green: Minimum green duration.
+            max_green: Maximum green duration.
+        """
+        self.discharge_rate = discharge_rate
+        self.min_green = min_green
+        self.max_green = max_green
+
+        logger.info(
+            f"SurtracLikeController initialized: "
+            f"discharge_rate={discharge_rate}s/veh, bounds=[{min_green}-{max_green}]s"
+        )
+
+    def select_action(
+        self,
+        observation: np.ndarray,
+        info: Optional[Dict] = None
+    ) -> int:
+        """
+        Select duration for the current phase based on queue clearance time.
+        Designed for ILPS (PerPhaseCorridorEnv) where output is a single duration index.
+
+        Args:
+            observation: Box(20,) per-junction observation
+            info: Optional dict with additional state
+
+        Returns:
+            int: Duration index (0-7) -> GREEN_DURATIONS[action]
+        """
+        # Parse observation
+        # [0:4] queues (N, S, E, W) normalized by MAX_QUEUE (50.0)
+        queues = observation[0:4] * 50.0
+        
+        # [12] emergency_flag
+        emergency = observation[12] > 0.5
+        
+        # [13] current_phase normalized by 3.0
+        current_phase = int(round(observation[13] * 3.0))
+
+        # Determine relevant queue for the current phase
+        # Phase 0: NS Straight, Phase 1: NS Left, Phase 2: EW Straight, Phase 3: EW Left
+        # Since we don't have turn-lane specific queues in obs, we aggregate by axis
+        if current_phase in [0, 1]:
+            # North and South
+            active_queue = max(queues[0], queues[1])
+        else:
+            # East and West
+            active_queue = max(queues[2], queues[3])
+
+        # Calculate time to clear the cluster
+        scheduled_duration = active_queue * self.discharge_rate
+
+        # Emergency override: if emergency present, give maximum green time to the active phase 
+        # (Assuming the environment advances phase logic naturally or emergency matches this phase)
+        if emergency:
+            scheduled_duration = self.max_green
+
+        # Clamp to bounds
+        duration = int(np.clip(scheduled_duration, self.min_green, self.max_green))
+
+        # Find closest index
+        options = np.array(signal.GREEN_DURATIONS)
+        idx = np.argmin(np.abs(options - duration))
+        
+        return int(idx)
+
+    def reset(self):
+        """Reset (no-op for schedule-driven)."""
+        pass
+
+    def get_name(self) -> str:
+        """Return controller name."""
+        return "Surtrac-Like"
+
+
+class ILPSFixedTimerController(TrafficController):
+    """
+    Fixed-Timer Controller for ILPS Per-Phase Environment.
+    
+    Always selects a fixed green duration (default 30s) for every phase.
+    Used as the absolute baseline.
+    """
+
+    def __init__(self, fixed_duration: int = 30):
+        self.fixed_duration = fixed_duration
+        options = np.array(signal.GREEN_DURATIONS)
+        self.idx = int(np.argmin(np.abs(options - fixed_duration)))
+
+        logger.info(f"ILPSFixedTimerController initialized: fixed_duration={fixed_duration}s")
+
+    def select_action(
+        self,
+        observation: np.ndarray,
+        info: Optional[Dict] = None
+    ) -> int:
+        return self.idx
+
+    def reset(self):
+        pass
+
+    def get_name(self) -> str:
+        return "Fixed-Timer"
+
+
 class ILPSRLController(TrafficController):
     """
     Wrapper for trained ILPS per-phase model.

@@ -30,3 +30,6 @@ matplotlib>=3.8.0
 
 # Training progress display
 tensorboard>=2.15.0
+
+# NTCIP 1202 Hardware Communication
+pysnmp-lextudio>=6.3.0
