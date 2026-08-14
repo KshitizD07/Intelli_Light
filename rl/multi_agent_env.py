@@ -41,12 +41,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from simulation.sumo_env import SUMOSimulation
 from simulation.route_generator import RouteGenerator
 from rl.reward_function import EnhancedRewardCalculator, RewardWeights
+from configs.parameters import signal, simulation as sim_config
 
 
 # ── Shared constants (mirrors configs/parameters.py values) ─────────────────
-ALL_RED        = 4          # Seconds of all-red clearance between phases
-EPISODE_LENGTH = 1800       # Simulation duration per episode (30 min)
-GREEN_DURATIONS = [10, 15, 20, 25, 30, 35, 40, 45]  # Selectable green times
+ALL_RED        = signal.ALL_RED
+EPISODE_LENGTH = sim_config.EPISODE_LENGTH
+GREEN_DURATIONS = signal.GREEN_DURATIONS
 MAX_QUEUE  = 50.0           # Normalisation cap for queue observations
 MAX_WAIT   = 120.0          # Normalisation cap for wait-time observations
 

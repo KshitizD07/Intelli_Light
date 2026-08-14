@@ -314,47 +314,49 @@ class EnhancedRewardCalculator:
         neighbor_context: dict = None
     ) -> float:
         """
-        Bonus for green-wave coordination (ILPS only).
+        Enhanced Green-Wave coordination bonus (Surtrac-Class).
         
-        Rewards the agent when its current phase matches the upstream
-        neighbour's phase — this encourages progressive signal timing
-        where vehicles encounter green lights as they travel along
-        the corridor.
-        
-        The bonus is active only for EW phases (0, 1) since the
-        corridor runs East-West. NS phases don't benefit from
-        progression.
-        
-        Args:
-            current_phase: This junction's current phase (0-3)
-            neighbor_context: Dict with upstream/downstream phase info
-                              (None for centralized mode → returns 0)
-        
-        Returns:
-            Green-wave bonus (0 if not applicable)
+        Rewards:
+        1. Arterial Alignment: Both junctions serving EW traffic or NS traffic.
+        2. Offset Coordination: (Conceptual) Rewarding progression.
         """
         if neighbor_context is None:
             return 0.0
         
         bonus = 0.0
-        
-        # Only reward EW phase coordination (arterial direction)
-        ew_phases = {0, 1}  # EW-Through and EW-Left
-        
+        ew_phases = {0, 1} # EW-Through, EW-Left
+        ns_phases = {2, 3} # NS-Through, NS-Left
+
+        # 1. Direct Arterial Matching (Phase-Level)
         if current_phase in ew_phases:
-            # Upstream coordination: if upstream is also in an EW phase,
-            # this junction is extending the green wave.
-            if neighbor_context.get("has_upstream", False):
-                up_phase = neighbor_context.get("upstream_phase")
-                if up_phase is not None and up_phase in ew_phases:
+            # Check East
+            if neighbor_context.get("has_E", False):
+                e_phase = neighbor_context.get("phase_E")
+                if e_phase in ew_phases:
                     bonus += self.weights.green_wave
             
-            # Downstream coordination: if downstream is also in EW phase,
-            # the wave is propagating forward.
-            if neighbor_context.get("has_downstream", False):
-                dn_phase = neighbor_context.get("downstream_phase")
-                if dn_phase is not None and dn_phase in ew_phases:
-                    bonus += self.weights.green_wave * 0.5  # Weaker signal
+            # Check West
+            if neighbor_context.get("has_W", False):
+                w_phase = neighbor_context.get("phase_W")
+                if w_phase in ew_phases:
+                    bonus += self.weights.green_wave * 0.7
+
+        elif current_phase in ns_phases:
+            # Check North
+            if neighbor_context.get("has_N", False):
+                n_phase = neighbor_context.get("phase_N")
+                if n_phase in ns_phases:
+                    bonus += self.weights.green_wave
+            
+            # Check South
+            if neighbor_context.get("has_S", False):
+                s_phase = neighbor_context.get("phase_S")
+                if s_phase in ns_phases:
+                    bonus += self.weights.green_wave * 0.7
+
+        # 2. Network Pressure Relief
+        # (Bonus if neighbor has high queue and this junction opens the 'drain')
+        # This requires more complex neighbor_context, for now we stick to phase-matching
         
         return bonus
     
