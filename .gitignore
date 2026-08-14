@@ -77,9 +77,15 @@ Thumbs.db
 # ===============================
 **/__pycache__/
 
-/__pycache__
-
-.cpython-313.pyc
+# ===============================
+# Large generated SUMO maps & node_modules
+# ===============================
+*.net.xml
+*.osm.xml
+*.rou.xml
+*.trips.xml
+node_modules/
+**/node_modules/
 
 
 
