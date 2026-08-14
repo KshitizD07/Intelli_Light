@@ -195,28 +195,24 @@ def _get_flow_definitions(scenario: str, multiplier: float) -> Dict[str, Tuple[i
 
 
 def _randomize_flows(flow_defs: Dict[str, Tuple[int, int]]) -> Dict[str, int]:
-    """
-    Generate random flow values within defined ranges.
-    
-    Args:
-        flow_defs: Dictionary with flow ranges
-    
-    Returns:
-        Dictionary with actual flow values for arterial + all cross-streets
-    """
-    return {
-        "W_E": random.randint(*flow_defs["major_in"]),
-        "E_W": random.randint(*flow_defs["major_out"]),
-        # J1 cross-streets
-        "N_S": random.randint(*flow_defs["minor"]),
-        "S_N": random.randint(*flow_defs["minor"]),
-        # J2 cross-streets
-        "N_S_J2": random.randint(*flow_defs["minor"]),
-        "S_N_J2": random.randint(*flow_defs["minor"]),
-        # J3 cross-streets
-        "N_S_J3": random.randint(*flow_defs["minor"]),
-        "S_N_J3": random.randint(*flow_defs["minor"]),
-    }
+    flows = {}
+    # West to East
+    flows["W_E_1"] = random.randint(*flow_defs["major_in"])
+    flows["W_E_4"] = random.randint(*flow_defs["major_in"])
+    flows["W_E_7"] = random.randint(*flow_defs["major_in"])
+    # East to West
+    flows["E_W_3"] = random.randint(*flow_defs["major_out"])
+    flows["E_W_6"] = random.randint(*flow_defs["major_out"])
+    flows["E_W_9"] = random.randint(*flow_defs["major_out"])
+    # North to South
+    flows["N_S_1"] = random.randint(*flow_defs["minor"])
+    flows["N_S_2"] = random.randint(*flow_defs["minor"])
+    flows["N_S_3"] = random.randint(*flow_defs["minor"])
+    # South to North
+    flows["S_N_7"] = random.randint(*flow_defs["minor"])
+    flows["S_N_8"] = random.randint(*flow_defs["minor"])
+    flows["S_N_9"] = random.randint(*flow_defs["minor"])
+    return flows
 
 
 def _write_route_file_header(f):
@@ -228,100 +224,65 @@ def _write_route_file_header(f):
 
 def _write_vehicle_types(f):
     """
-    Write vehicle type definitions with realistic parameters.
+    Write vehicle type definitions with realistic Indian traffic parameters.
     
-    Vehicle types:
-    - car: Standard passenger vehicle (70% of traffic)
-    - 2-wheeler: Motorcycle/scooter (20% of traffic)
-    - bus: Public transport (10% of traffic)
-    - ambulance: Emergency vehicle (special)
+    Tuning for Heterogeneous traffic:
+    - car: Standard passenger vehicle (reduced minGap for aggressive following)
+    - 2-wheeler: Motorcycle/scooter (lateral alignment arbitrary for lane-splitting)
+    - bus: Public transport (large, slow)
+    - ambulance: Emergency vehicle
     """
-    f.write('\n  <!-- Vehicle Type Definitions -->\n')
+    f.write('\n  <!-- Vehicle Type Definitions (Indian Traffic Replica) -->\n')
     
-    # Standard car
-    f.write('  <vType id="car" accel="2.9" decel="7.5" sigma="0.5" '
-            'length="5" maxSpeed="50" guiShape="passenger"/>\n')
+    # Standard car: Aggressive following (minGap=1.0)
+    f.write('  <vType id="car" accel="2.9" decel="7.5" sigma="0.7" '
+            'length="5" minGap="1.0" maxSpeed="50" guiShape="passenger"/>\n')
     
-    # Two-wheeler (faster acceleration, more unpredictable)
-    f.write('  <vType id="2-wheeler" accel="2.5" decel="6.0" sigma="0.7" '
-            'length="2.5" maxSpeed="40" guiShape="motorcycle"/>\n')
+    # Two-wheeler: Lane-splitting and erratic (sigma=0.9, latAlignment=arbitrary)
+    f.write('  <vType id="2-wheeler" accel="3.5" decel="6.0" sigma="0.9" '
+            'length="2.2" width="0.8" minGap="0.5" maxSpeed="45" '
+            'latAlignment="arbitrary" guiShape="motorcycle"/>\n')
     
-    # Bus (slower, larger)
-    f.write('  <vType id="bus" accel="1.5" decel="4.0" sigma="0.5" '
-            'length="12" maxSpeed="30" guiShape="bus"/>\n')
+    # Bus: Large and disruptive
+    f.write('  <vType id="bus" accel="1.2" decel="4.0" sigma="0.6" '
+            'length="12" width="2.5" minGap="1.5" maxSpeed="35" guiShape="bus"/>\n')
     
-    # Emergency vehicle (high priority, fast)
-    f.write('  <vType id="ambulance" accel="4.0" decel="8.0" sigma="0.2" '
-            'length="7" maxSpeed="60" guiShape="emergency" vClass="emergency"/>\n')
+    # Emergency vehicle: High priority
+    f.write('  <vType id="ambulance" accel="4.5" decel="8.0" sigma="0.1" '
+            'length="7" width="2.2" minGap="1.0" maxSpeed="65" '
+            'guiShape="emergency" vClass="emergency"/>\n')
 
 
 def _write_route_definitions(f):
-    """
-    Write route definitions for the 3-junction corridor network.
-    
-    Corridor layout: W1  J1  J2  J3  E1
-    with cross-streets N1/S1 at J1, N2/S2 at J2, N3/S3 at J3.
-    
-    Routes:
-    Arterial:
-    - W_E: Full corridor West to East (W1  J1  J2  J3  E1)
-    - E_W: Full corridor East to West (E1  J3  J2  J1  W1)
-    Cross-streets (J1):
-    - N_S_J1: North to South at J1
-    - S_N_J1: South to North at J1
-    Cross-streets (J2):
-    - N_S_J2: North to South at J2
-    - S_N_J2: South to North at J2
-    Cross-streets (J3):
-    - N_S_J3: North to South at J3
-    - S_N_J3: South to North at J3
-    """
-    f.write('\n  <!-- Corridor Route Definitions -->\n')
-    # Full arterial through-routes
-    f.write('  <route id="W_E" edges="W1_to_J1 J1_to_J2 J2_to_J3 J3_to_E1"/>\n')
-    f.write('  <route id="E_W" edges="E1_to_J3 J3_to_J2 J2_to_J1 J1_to_W1"/>\n')
-    # Cross-street routes at J1
-    f.write('  <route id="N_S" edges="N1_to_J1 J1_to_S1"/>\n')
-    f.write('  <route id="S_N" edges="S1_to_J1 J1_to_N1"/>\n')
-    # Cross-street routes at J2
-    f.write('  <route id="N_S_J2" edges="N2_to_J2 J2_to_S2"/>\n')
-    f.write('  <route id="S_N_J2" edges="S2_to_J2 J2_to_N2"/>\n')
-    # Cross-street routes at J3
-    f.write('  <route id="N_S_J3" edges="N3_to_J3 J3_to_S3"/>\n')
-    f.write('  <route id="S_N_J3" edges="S3_to_J3 J3_to_N3"/>\n')
+    f.write('\n  <!-- 3x3 Grid Route Definitions -->\n')
+
+    # West to East
+    f.write('  <route id="W_E_1" edges="W1_to_J1 J1_to_J2 J2_to_J3 J3_to_E3"/>\n')
+    f.write('  <route id="W_E_4" edges="W4_to_J4 J4_to_J5 J5_to_J6 J6_to_E6"/>\n')
+    f.write('  <route id="W_E_7" edges="W7_to_J7 J7_to_J8 J8_to_J9 J9_to_E9"/>\n')
+
+    # East to West
+    f.write('  <route id="E_W_3" edges="E3_to_J3 J3_to_J2 J2_to_J1 J1_to_W1"/>\n')
+    f.write('  <route id="E_W_6" edges="E6_to_J6 J6_to_J5 J5_to_J4 J4_to_W4"/>\n')
+    f.write('  <route id="E_W_9" edges="E9_to_J9 J9_to_J8 J8_to_J7 J7_to_W7"/>\n')
+
+    # North to South
+    f.write('  <route id="N_S_1" edges="N1_to_J1 J1_to_J4 J4_to_J7 J7_to_S7"/>\n')
+    f.write('  <route id="N_S_2" edges="N2_to_J2 J2_to_J5 J5_to_J8 J8_to_S8"/>\n')
+    f.write('  <route id="N_S_3" edges="N3_to_J3 J3_to_J6 J6_to_J9 J9_to_S9"/>\n')
+
+    # South to North
+    f.write('  <route id="S_N_7" edges="S7_to_J7 J7_to_J4 J4_to_J1 J1_to_N1"/>\n')
+    f.write('  <route id="S_N_8" edges="S8_to_J8 J8_to_J5 J5_to_J2 J2_to_N2"/>\n')
+    f.write('  <route id="S_N_9" edges="S9_to_J9 J9_to_J6 J6_to_J3 J3_to_N3"/>\n')
 
 
-def _write_traffic_flows(f, flows: Dict[str, int]):
-    """
-    Write traffic flow definitions.
-    
-    Args:
-        f: File handle
-        flows: Dictionary with flow values for each direction
-    """
+
+def _write_traffic_flows(f, flows):
     f.write('\n  <!-- Traffic Flows -->\n')
-    
     ep = simulation.EPISODE_LENGTH
-    # Arterial flows (through the full corridor)
-    f.write(f'  <flow id="flow_WE" type="car" route="W_E" '
-            f'begin="0" end="{ep}" vehsPerHour="{flows["W_E"]}"/>\n')
-    f.write(f'  <flow id="flow_EW" type="car" route="E_W" '
-            f'begin="0" end="{ep}" vehsPerHour="{flows["E_W"]}"/>\n')
-    # J1 cross-street flows
-    f.write(f'  <flow id="flow_NS" type="car" route="N_S" '
-            f'begin="0" end="{ep}" vehsPerHour="{flows["N_S"]}"/>\n')
-    f.write(f'  <flow id="flow_SN" type="car" route="S_N" '
-            f'begin="0" end="{ep}" vehsPerHour="{flows["S_N"]}"/>\n')
-    # J2 cross-street flows
-    f.write(f'  <flow id="flow_NS_J2" type="car" route="N_S_J2" '
-            f'begin="0" end="{ep}" vehsPerHour="{flows["N_S_J2"]}"/>\n')
-    f.write(f'  <flow id="flow_SN_J2" type="car" route="S_N_J2" '
-            f'begin="0" end="{ep}" vehsPerHour="{flows["S_N_J2"]}"/>\n')
-    # J3 cross-street flows
-    f.write(f'  <flow id="flow_NS_J3" type="car" route="N_S_J3" '
-            f'begin="0" end="{ep}" vehsPerHour="{flows["N_S_J3"]}"/>\n')
-    f.write(f'  <flow id="flow_SN_J3" type="car" route="S_N_J3" '
-            f'begin="0" end="{ep}" vehsPerHour="{flows["S_N_J3"]}"/>\n')
+    for route_id, flow_val in flows.items():
+        f.write(f'  <flow id="flow_{route_id}" type="car" route="{route_id}" begin="0" end="{ep}" vehsPerHour="{flow_val}"/>\n')
 
 
 def _write_emergency_vehicle(f) -> Optional[Dict]:

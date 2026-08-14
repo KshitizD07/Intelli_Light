@@ -1,0 +1,23 @@
+<nodes>
+    <node id="J1" x="0" y="1000" type="traffic_light"/>
+    <node id="N1" x="0" y="1250" type="priority"/>
+    <node id="W1" x="-250" y="1000" type="priority"/>
+    <node id="J2" x="500" y="1000" type="traffic_light"/>
+    <node id="N2" x="500" y="1250" type="priority"/>
+    <node id="J3" x="1000" y="1000" type="traffic_light"/>
+    <node id="N3" x="1000" y="1250" type="priority"/>
+    <node id="E3" x="1250" y="1000" type="priority"/>
+    <node id="J4" x="0" y="500" type="traffic_light"/>
+    <node id="W4" x="-250" y="500" type="priority"/>
+    <node id="J5" x="500" y="500" type="traffic_light"/>
+    <node id="J6" x="1000" y="500" type="traffic_light"/>
+    <node id="E6" x="1250" y="500" type="priority"/>
+    <node id="J7" x="0" y="0" type="traffic_light"/>
+    <node id="S7" x="0" y="-250" type="priority"/>
+    <node id="W7" x="-250" y="0" type="priority"/>
+    <node id="J8" x="500" y="0" type="traffic_light"/>
+    <node id="S8" x="500" y="-250" type="priority"/>
+    <node id="J9" x="1000" y="0" type="traffic_light"/>
+    <node id="S9" x="1000" y="-250" type="priority"/>
+    <node id="E9" x="1250" y="0" type="priority"/>
+</nodes>

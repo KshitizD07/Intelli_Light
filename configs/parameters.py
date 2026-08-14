@@ -34,7 +34,7 @@ class SimulationConfig:
     STEP_LENGTH = 1.0      # SUMO time step (seconds)
     
     # Network
-    SUMO_CONFIG_FILE = "configs/sumo/intersection.sumocfg"
+    SUMO_CONFIG_FILE = "configs/sumo/grid3x3.sumocfg"
     TRAFFIC_LIGHT_ID = "J1"
     
     # GUI
@@ -158,7 +158,11 @@ class SafetyConfig:
 
 @dataclass
 class RewardWeights:
-    """Enhanced reward component weights."""
+    """Enhanced reward component weights.
+    
+    NOTE: Canonical version is in rl/reward_function.py.
+    Keep these in sync when changing weights.
+    """
     
     # Primary objectives
     throughput: float = 1.0      # Vehicles served
@@ -173,6 +177,9 @@ class RewardWeights:
     # Safety (CRITICAL)
     starvation: float = -8.0     # Exponential penalty (STRONG!)
     emergency: float = 100.0     # Emergency vehicle bonus (HUGE!)
+    
+    # ILPS coordination
+    green_wave: float = 3.0      # Green-wave coordination bonus
 
 
 class RewardConfig:
@@ -372,11 +379,11 @@ class ILPSConfig:
     PARALLEL_EXECUTION = True       # Execute all junctions for same phase simultaneously
     
     # Observation
-    OBS_SIZE = 20                   # 14 local + 6 neighbor/topology
+    OBS_SIZE = 26                   # 14 local + 12 neighbor/topology (2D)
     DROP_JUNCTION_ID = True         # True ILPS: position-invariant control
     
     # Default junction count (can be overridden at runtime)
-    DEFAULT_N_JUNCTIONS = 3
+    DEFAULT_N_JUNCTIONS = 9
 
 
 # ============================================================================

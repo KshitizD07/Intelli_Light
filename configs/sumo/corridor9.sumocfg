@@ -1,0 +1,19 @@
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
+    <input>
+        <net-file value="corridor9.net.xml"/>
+        <!-- Route file will be specified via command line -->
+    </input>
+    <time>
+        <begin value="0"/>
+        <step-length value="1.0"/>
+    </time>
+    <processing>
+        <!-- Indian Traffic: Enable Sublane Model for lane-splitting and squeezing -->
+        <lateral-resolution value="0.8"/>
+        <scale value="1.0"/>
+    </processing>
+    <report>
+        <no-step-log value="true"/>
+        <no-warnings value="true"/>
+    </report>
+</configuration>
