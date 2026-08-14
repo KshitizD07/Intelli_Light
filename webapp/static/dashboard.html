@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="IntelliLight - AI-Powered Adaptive Traffic Control System for Smart Cities. Real-time monitoring of GNN-MARL traffic optimization.">
+    <title>IntelliLight 3.0 — Adaptive Traffic Intelligence</title>
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.css">
+    
+    <!-- MapLibre GL JS -->
+    <script src="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.js"></script>
+</head>
+<body>
+    <div class="app" id="app">
+        <!-- ═══════════════ HEADER ═══════════════ -->
+        <header class="header">
+            <div class="header-left">
+                <div class="logo">
+                    <div class="logo-icon">🚦</div>
+                    <div class="logo-text">Intelli<span>Light</span></div>
+                </div>
+                <div class="header-badge badge-live" id="status-badge">● LIVE</div>
+                <div class="header-badge badge-sim" style="margin-left:-8px">ST-MARL v3.0</div>
+            </div>
+            
+            <div class="header-center">
+                <div class="header-kpi">
+                    <div class="kpi-value" id="kpi-vehicles" style="color:var(--cyan)">0</div>
+                    <div class="kpi-label">Vehicles</div>
+                </div>
+                <div class="kpi-divider"></div>
+                <div class="header-kpi">
+                    <div class="kpi-value" id="kpi-avgwait" style="color:var(--green)">0.0s</div>
+                    <div class="kpi-label">Avg Wait</div>
+                </div>
+                <div class="kpi-divider"></div>
+                <div class="header-kpi">
+                    <div class="kpi-value" id="kpi-throughput" style="color:var(--blue)">0</div>
+                    <div class="kpi-label">Throughput</div>
+                </div>
+                <div class="kpi-divider"></div>
+                <div class="header-kpi">
+                    <div class="kpi-value" id="kpi-failsafes" style="color:var(--red)">0</div>
+                    <div class="kpi-label">Failsafes</div>
+                </div>
+                <div class="kpi-divider"></div>
+                <div class="header-kpi">
+                    <div class="kpi-value" id="kpi-ev" style="color:var(--purple)">0</div>
+                    <div class="kpi-label">EV Active</div>
+                </div>
+            </div>
+            
+            <div class="header-right">
+                <div class="mode-toggle">
+                    <button class="mode-btn active" id="btn-operator" onclick="setMode('operator')">Operator</button>
+                    <button class="mode-btn" id="btn-public" onclick="setMode('public')">Public</button>
+                </div>
+                <div class="alert-indicator" id="alert-btn" onclick="toggleEvents()">
+                    🔔
+                    <div class="alert-badge" id="alert-count">0</div>
+                </div>
+            </div>
+        </header>
+        
+        <!-- ═══════════════ SIDEBAR ═══════════════ -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-section">
+                <div class="search-box">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="search-input" placeholder="Search junction..." oninput="searchJunction(this.value)">
+                </div>
+            </div>
+            
+            <div class="sidebar-section">
+                <div class="sidebar-title">Navigation</div>
+                <div class="nav-item active" onclick="navTo('overview')">
+                    <span class="nav-icon">📊</span> Overview
+                </div>
+                <div class="nav-item" onclick="navTo('graph')">
+                    <span class="nav-icon">🗺️</span> City Graph
+                </div>
+                <div class="nav-item" onclick="navTo('analytics')">
+                    <span class="nav-icon">📈</span> Analytics
+                </div>
+                <div class="nav-item" onclick="navTo('events')">
+                    <span class="nav-icon">📋</span> Event Log
+                </div>
+                <div class="nav-item" onclick="navTo('intersections')">
+                    <span class="nav-icon">🔴</span> Intersections
+                </div>
+            </div>
+            
+            <div class="sidebar-section">
+                <div class="sidebar-title">Overlays</div>
+                <div class="filter-item">
+                    <div class="filter-label">
+                        <div class="filter-dot" style="background:var(--orange)"></div>
+                        Congestion
+                    </div>
+                    <div class="toggle active" id="toggle-congestion" onclick="toggleFilter(this)"></div>
+                </div>
+                <div class="filter-item">
+                    <div class="filter-label">
+                        <div class="filter-dot" style="background:var(--blue)"></div>
+                        Emergency Vehicles
+                    </div>
+                    <div class="toggle" id="toggle-ev" onclick="toggleFilter(this)"></div>
+                </div>
+                <div class="filter-item">
+                    <div class="filter-label">
+                        <div class="filter-dot" style="background:var(--red)"></div>
+                        Active Failsafes
+                    </div>
+                    <div class="toggle active" id="toggle-failsafe" onclick="toggleFilter(this)"></div>
+                </div>
+                <div class="filter-item">
+                    <div class="filter-label">
+                        <div class="filter-dot" style="background:var(--purple)"></div>
+                        GNN Attention
+                    </div>
+                    <div class="toggle" id="toggle-attention" onclick="toggleFilter(this)"></div>
+                </div>
+            </div>
+            
+            <div class="sidebar-section" id="junction-list-section">
+                <div class="sidebar-title">Junctions (<span id="junction-count">0</span>)</div>
+                <div id="junction-list" style="max-height: 300px; overflow-y: auto;"></div>
+            </div>
+        </aside>
+        
+        <!-- ═══════════════ MAP ═══════════════ -->
+        <main class="map-container">
+            <!-- Overlay mode bar -->
+            <div class="overlay-bar">
+                <button class="overlay-btn active" onclick="setOverlay('density', this)">Density</button>
+                <button class="overlay-btn" onclick="setOverlay('queue', this)">Queue</button>
+                <button class="overlay-btn" onclick="setOverlay('wait', this)">Wait Time</button>
+                <button class="overlay-btn" onclick="setOverlay('phase', this)">Phases</button>
+                <button class="overlay-btn" onclick="setOverlay('backpressure', this)">Backpressure</button>
+            </div>
+            
+            <!-- Map -->
+            <div id="map"></div>
+            
+            <!-- Map controls -->
+            <div class="map-controls">
+                <button class="map-btn" onclick="zoomIn()" title="Zoom In">+</button>
+                <button class="map-btn" onclick="zoomOut()" title="Zoom Out">−</button>
+                <button class="map-btn" onclick="resetView()" title="Reset View">⌂</button>
+            </div>
+            
+            <!-- Public mode legend -->
+            <div class="public-banner" id="public-legend" style="display:none;">
+                <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Clear</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div> Moderate</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div> Heavy</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> Gridlocked</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#4a5568"></div> Offline</div>
+            </div>
+        </main>
+        
+        <!-- ═══════════════ RIGHT PANEL ═══════════════ -->
+        <aside class="panel" id="panel">
+            <div class="panel-header">
+                <div class="panel-title" id="panel-junction-name">Select a Junction</div>
+                <button class="panel-close" onclick="closePanel()">✕</button>
+            </div>
+            
+            <div id="panel-content">
+                <div class="panel-section" style="text-align:center; padding:40px 16px;">
+                    <div style="font-size:32px; margin-bottom:12px;">🗺️</div>
+                    <div style="color:var(--text-muted); font-size:13px;">
+                        Click on a junction on the map<br>to view its details
+                    </div>
+                </div>
+            </div>
+        </aside>
+        
+        <!-- ═══════════════ TIMELINE ═══════════════ -->
+        <footer class="timeline">
+            <div class="timeline-time" id="sim-time">T+00:00:00</div>
+            <div class="timeline-events" id="event-feed"></div>
+        </footer>
+    </div>
+    
+    <script src="/static/dashboard.js"></script>
+</body>
+</html>

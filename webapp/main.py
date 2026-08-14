@@ -83,10 +83,11 @@ class TrainingManager:
         if self.is_running():
             return False
         
-        cmd = [sys.executable, os.path.join(ROOT_DIR, "training", "train_rl.py"), "--timesteps", "100000"]
+        # Point to the modern ILPS training script
+        cmd = [sys.executable, os.path.join(ROOT_DIR, "training", "train_ilps.py"), "--timesteps", "100000"]
         if scenario != "WEEKEND":
-            # Map scenarios to stages if needed, for now just pass as example
-            pass
+            # Pass scenario flag if supported by train_ilps.py
+            cmd.extend(["--scenario", scenario])
             
         self.process = subprocess.Popen(
             cmd,
@@ -118,6 +119,14 @@ class TrainingManager:
             line = await asyncio.to_thread(_blocking_readline)
             if not line:
                 break
+            # Extract and broadcast telemetry if line contains JSON
+            if "TELEMETRY:" in line:
+                try:
+                    data = json.loads(line.split("TELEMETRY:")[1])
+                    await manager.broadcast(json.dumps({"telemetry": data}))
+                except:
+                    pass
+
             await manager.broadcast(json.dumps({
                 "msg": line.strip(),
                 "level": "info",
@@ -130,17 +139,39 @@ class TrainingManager:
 
 training_manager = TrainingManager()
 
+# ── XAI Reasoning Buffer ──
+class Reasoner:
+    def __init__(self):
+        self.log = []
+
+    def add_explanation(self, explanation: dict):
+        self.log.append({
+            "timestamp": time.time(),
+            **explanation
+        })
+        # Keep last 50
+        if len(self.log) > 50:
+            self.log.pop(0)
+
+reasoner = Reasoner()
+
 # ── Redis Reader Task ──
 async def redis_reader():
     """Continuously poll the Redis Pub/Sub channel and broadcast to WS clients."""
     pubsub = redis_client.pubsub()
     await pubsub.subscribe("intellilight_telemetry")
+    await pubsub.subscribe("intellilight_xai")
     
-    print("[Intelli-Light Backend] Subscribed to intellilight_telemetry...")
+    print("[Intelli-Light Backend] Subscribed to telemetry and XAI channels...")
     try:
         async for message in pubsub.listen():
             if message['type'] == 'message':
+                channel = message['channel']
                 data = message['data']
+                
+                if channel == "intellilight_xai":
+                    reasoner.add_explanation(json.loads(data))
+                
                 await manager.broadcast(data)
     except asyncio.CancelledError:
         pass
