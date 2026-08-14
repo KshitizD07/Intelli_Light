@@ -1,264 +1,273 @@
-<div align="center">
+# 🚦 Intelli-Light 3.0: Universal Adaptive Traffic Signal Control
 
-# 🚦 Intelli-Light
-
-### Reinforcement Learning Traffic Signal Control for Multi-Intersection Arterial Corridors
-
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)](https://www.python.org/)
-[![SUMO](https://img.shields.io/badge/SUMO-1.18%2B-green)](https://www.eclipse.org/sumo/)
-[![Stable-Baselines3](https://img.shields.io/badge/SB3-PPO-orange)](https://stable-baselines3.readthedocs.io/)
-
-
-> This project was developed with the assistance of an **Agentic AI workflow**.
-
-</div>
+> **Graph-Based Reinforcement Learning, Generative Traffic Modeling, and Deterministic Failsafes for Complex, Chaotic Urban Grids.**
 
 ---
 
-## Overview
+## 🌟 Executive Summary
 
-**Intelli-Light** is a production-grade Reinforcement Learning system that controls traffic signals across a multi-intersection arterial corridor. Instead of relying on fixed timer cycles or reactive pressure-based heuristics, Intelli-Light uses a centralized Proximal Policy Optimization (PPO) agent that learns to coordinate green-wave timing across 3 interconnected junctions simultaneously.
+**Intelli-Light** is a state-of-the-art multi-agent adaptive traffic signal control system designed to solve heavy congestion, emergency vehicle delay, and unfair starvation in chaotic urban traffic environments (such as Indian metro networks like Lucknow).
 
-The system outperforms both the classic Fixed-Timer and industry-standard Max-Pressure baselines across all evaluated traffic scenarios:
+By replacing rigid grid-based observation arrays with **Graph Neural Networks (GNN)**, **Spatio-Temporal MARL (GAT + LSTM)**, and **GAN-driven Generative Traffic Synthesis**, Intelli-Light achieves topology-agnostic control capable of managing 3-way, 4-way, 5-way, or 6-way non-standard intersections while coordinating city-wide green waves. 
 
-| Metric | vs Max-Pressure | vs Fixed-Timer |
-|---|---|---|
-| Average Wait Time | **−58%** | **−78%** |
-| Queue Length | **−53%** | **−78%** |
-| Zero Starvation Events | ✅ | ✅ |
+To bridge the gap between AI research and physical road deployment, Intelli-Light embeds a **Deterministic Failsafe Watchdog Engine** and standard **NTCIP 1202 SNMP Hardware Controllers** for direct plug-and-play installation into municipal traffic cabinets.
 
 ---
 
-## Features
+## 🔥 Key Features & Capabilities
 
-- **4-Phase Cyclic Signal Control** — EW Through, EW Protected Left, NS Through, NS Protected Left, with mandatory all-red clearance intervals
-- **Multi-Intersection Coordination** — Single centralized PPO agent controls J1 → J2 → J3 arterial corridor and learns green-wave offsets naturally
-- **Emergency Vehicle Prioritization** — Detects emergency vehicles by ID prefix and triggers phase overrides with a strong reward bonus
-- **Safety Constraints** — Minimum green time (10s), mandatory all-red (4s), and a starvation detector that fires a heavy penalty if any direction waits > 90s
-- **Curriculum Learning** — Training progresses through WEEKEND (easy) → EVENING_RUSH → MORNING_RUSH scenarios automatically
-- **Realistic Traffic Generation** — Probabilistic demand curves with time-of-day multipliers, volatility, and random incident events
-- **Baseline Comparison Suite** — Full evaluation pipeline comparing RL against Fixed-Timer and Max-Pressure controllers across multiple scenarios
-- **Real-time Web Dashboard** — Decoupled FastAPI and Redis architecture providing live telemetry visualization and simulation controls via a sleek, cyberpunk-themed web interface
+### 🧠 1. Graph Neural Networks (GNN) & ST-MARL Core
+* **Topology-Agnostic GCN (`models/gnn_extractor.py`)**: PyTorch-based Graph Convolutional Network feature extractor that dynamically aggregates $N$-hop neighborhood states across variable-degree road networks.
+* **Spatio-Temporal Graph Attention (`models/st_marl_model.py`)**: Combines Graph Attention Networks (GAT) with LSTM temporal encoders to capture both spatial neighbor interaction and historical queue trends over past timesteps.
+* **Multi-Agent Parameter Sharing (ILPS)**: Scalable Multi-Agent Reinforcement Learning (MARL) enabling coordinated signal control across arbitrary city topologies without exploding observation spaces.
+
+### 🎲 2. GAN & Generative Traffic Demand Pipeline
+* **Generative Scenario & Flow Modeling**: Architecture supporting Generative Adversarial Networks (GANs) and domain randomization to synthesize realistic, non-stationary traffic demand patterns, peak rush-hour bursts, and vehicle flow distributions.
+* **Stochastic Real-World Demand Generator (`simulation/realistic_traffic.py`)**: Simulates time-of-day demand curves (morning/evening rush hours, midday, night), random events (accidents, rain, road work, concert surges), directional imbalances, and $30\%$ stochastic volatility.
+* **Automated Map Ingestion (`simulation/generate_lucknow.py`)**: Automated Overpass API pipeline downloading OpenStreetMap (OSM) spatial data for cities (e.g., Lucknow), converting via SUMO `netconvert`, and building dynamic route files via `randomTrips`.
+
+### ⚖️ 3. Multi-Factor Production Reward Calculator (`rl/reward_function.py`)
+* **Exponential Anti-Starvation Penalty**: Penalizes wait times exceeding 60 seconds exponentially ($-8.0 \times \text{excess}^{1.3}$), ensuring no vehicle is stranded indefinitely.
+* **Emergency Vehicle Preemption**: $+100$ bonus for immediate emergency vehicle clearance and $-200$ penalty if emergency vehicles are delayed.
+* **Surtrac-Class Green-Wave Coordination**: $+3.0$ arterial alignment bonus when adjacent junctions synchronize green phases along major corridors.
+* **Pressure & Queue Stabilization**: Integrates Max-Pressure queue differentials to stabilize PPO learning convergence.
+
+### 🛡️ 4. Deterministic Failsafe Engine & Hardware Integration
+* **NTCIP 1202 Standard Controller (`deployment/controller.py`)**: Native SNMP communication implementing NTCIP 1202 OIDs (`phaseControlGroupHold`, `phaseControlGroupForceOff`, `phaseStatusGroupGreen`) for direct hardware interfacing with Siemens, Econolite, and Yunex traffic signal cabinets.
+* **Shadow Mode Operations**: Run AI predictions in passive observation mode to build municipal trust prior to live actuation.
+* **Deterministic Watchdog (`deployment/failsafe.py`)**: Hardware safety layer evaluating inference latency ($<0.5\text{s}$), queue capacity, max wait thresholds ($>120\text{s}$), and heartbeat timeouts ($2.0\text{s}$) to transition between `NORMAL`, `FALLBACK_SOFT` (fixed-timer), and `FALLBACK_HARD` (flashing hardware mode).
+
+### 🔍 5. Explainable AI (XAI) Engine (`training/xai_engine.py`)
+* **Natural Language Feature Attribution**: Converts high-dimensional observation tensors into readable explanations (e.g., *"Starvation risk: Vehicles on West approach waiting > 102s"*).
+* **Liability & Audit Reports**: Generates priority-level summaries (`NORMAL`, `HIGH`, `CRITICAL`) for municipal engineers and safety compliance audits.
+
+### 📊 6. Web Dashboards & 3D Network Visualizer (`webapp/`)
+* **FastAPI + Async Redis Backend (`webapp/main.py`, `webapp/dashboard_backend.py`)**: Asynchronous WebSocket streaming (`/ws/live`, `/ws/telemetry`) broadcasting live simulation tick metrics.
+* **Interactive 2D Monitoring Dashboard**: View live KPI meters, queue states, active failsafe events, and manually override intersection signal phases.
+* **3D React + Three.js Graph Dashboard (`webapp/3d-dashboard/`)**: Interactive 3D visualization rendering GNN graph nodes, dynamic traffic edges, signal states, and particle effect flows.
 
 ---
 
-## Architecture
+## 🏗️ System Architecture
 
 ```
+               +----------------------------------+
+               |  OpenStreetMap / Overpass API   |
+               +----------------------------------+
+                                |
+                                v
+               +----------------------------------+
+               |   SUMO Network & Simulation      |
+               |  (Lucknow / Random Grid Networks)|
+               +----------------------------------+
+                                |
+                                v
+               +----------------------------------+
+               | Generative Traffic Generator     |
+               | (GAN / Stochastic Demand Curves) |
+               +----------------------------------+
+                                |
+                                v
+    +--------------------------------------------------------+
+    |               Perception & Prediction                  |
+    |      (Vehicle Detection, Queue & Flow Forecasting)     |
+    +--------------------------------------------------------+
+                                |
+                                v
+    +--------------------------------------------------------+
+    |             GNN & ST-MARL Policy Engine                |
+    |      (PyTorch GCN / Graph Attention + LSTM Memory)     |
+    +--------------------------------------------------------+
+                                |
+                                v
+    +--------------------------------------------------------+
+    |           Deterministic Failsafe Watchdog             |
+    |   (Latency, Starvation & Latency Hard-Boundary Checks) |
+    +--------------------------------------------------------+
+            |                                    |
+            v                                    v
++-----------------------+            +-----------------------+
+|  NTCIP 1202 Cabinet   |            | Live Web Dashboards   |
+| (SNMP Physical TLC)   |            | (2D & 3D Three.js WS) |
++-----------------------+            +-----------------------+
+```
+
+---
+
+## 📂 Repository Structure
+
+```text
 Intelli-Light/
-│
-├── configs/                    # Configuration and SUMO network files
-│   ├── parameters.py           # Centralized config: signal, reward, training, safety
-│   └── sumo/                   # SUMO simulation network (nodes, edges, config)
-│
-├── rl/                         # Reinforcement learning core
-│   ├── multi_agent_env.py      # CorridorEnv — Gymnasium env for 3-junction corridor
-│   ├── traffic_env.py          # TrafficEnv4Phase — single-junction 4-phase env
-│   └── reward_function.py      # EnhancedRewardCalculator with safety & emergency logic
-│
-├── simulation/                 # SUMO simulation management
-│   ├── sumo_env.py             # SUMOSimulation — TraCI lifecycle management
-│   ├── route_generator.py      # Generates SUMO .rou.xml files per scenario
-│   └── realistic_traffic.py    # Time-of-day traffic demand modeling
-│
-├── training/                   # Training and evaluation pipeline
-│   ├── train_rl_4phase.py      # Main PPO training script with curriculum
-│   ├── evaluate_model.py       # Full benchmark: RL vs baselines
-│   ├── evaluation_engine.py    # Runs episodes and collects step-level data
-│   ├── metrics_calculator.py   # Computes wait time, throughput, fairness metrics
-│   ├── baseline_controllers.py # Fixed-Timer and Max-Pressure baselines
-│   └── evaluation_callback.py  # SB3 callback for periodic evaluation
-│
-├── webapp/                     # Web dashboard and API backend
-│   ├── main.py                 # FastAPI server and WebSocket bridge
-│   ├── static/                 # Frontend assets (HTML, CSS, JS)
-│   └── dashboard.py            # Example/helper dashboard script
-│
-├── main.py                     # CLI entry point: train / evaluate / simulate
-├── requirements.txt            # Python dependencies
-└── TRAINING_GUIDE.md           # Step-by-step training instructions
+├── main.py                     # Primary CLI entrypoint for GNN & ST-MARL tasks
+├── configs/                    # System configurations, signal timings, and parameters
+├── deployment/                 # Physical hardware deployment and safety guardrails
+│   ├── controller.py           # NTCIP 1202 SNMP hardware bridge & Shadow Mode
+│   └── failsafe.py             # Watchdog state machine (NORMAL / SOFT / HARD fallback)
+├── docs/                       # Architectural specs and GNN manifesto
+│   └── INTELLI_LIGHT_3_GNN_MANIFESTO.md
+├── models/                     # Deep Learning neural feature extractors
+│   ├── gnn_extractor.py        # PyTorch SimpleGCNLayer & BaseFeaturesExtractor
+│   ├── st_marl_model.py        # Spatio-Temporal GAT + LSTM Feature Extractor
+│   └── override_log.py         # Logging and model override utilities
+├── perception/                 # Computer vision & vehicle detection pipeline
+├── prediction/                 # Traffic prediction and flow forecasting
+├── rl/                         # Gymnasium Environments & Reward logic
+│   ├── sumo_gnn_env.py         # SUMO Graph-based multi-agent environment
+│   ├── multi_agent_env.py      # Multi-agent traffic corridor environment
+│   ├── reward_function.py      # Multi-factor production reward calculator
+│   ├── gnn_env.py              # Architecture prototype Gym env
+│   ├── real_world_env.py       # Real-world benchmark environment
+│   ├── sumo_gnn_randomized_env.py # Environment with domain randomization
+│   └── sumo_gnn_realistic_env.py  # Realistic traffic SUMO environment
+├── routes/                     # Generated route definitions
+├── simulation/                 # SUMO lifecycle, traffic & map generators
+│   ├── generate_lucknow.py     # Real Lucknow OpenStreetMap downloader & compiler
+│   ├── generate_random_map.py  # Synthetic network generator
+│   ├── generate_single_intersection.py
+│   ├── realistic_traffic.py    # Time-of-day demand & random traffic event generator
+│   ├── route_generator.py      # Vehicle trip & demand matrix builder
+│   └── sumo_env.py             # Core SUMO TraCI interface wrapper
+├── training/                   # Model training, evaluation & explainability
+│   ├── baseline_controllers.py # Max-Pressure, Surtrac-Like & Fixed-Timer baselines
+│   ├── evaluation_engine.py    # Benchmark evaluation runner
+│   ├── metrics_calculator.py   # Traffic & environmental metrics calculator
+│   ├── train_gnn.py            # GNN model training script
+│   ├── train_gnn_randomized.py # Domain-randomized GNN training script
+│   ├── train_st_marl.py        # Spatio-Temporal MARL training script
+│   ├── run_gnn_gui.py          # SUMO GUI demonstration launcher
+│   └── xai_engine.py           # Explainable AI decision reasoning engine
+└── webapp/                     # Web dashboards & visualization tools
+    ├── main.py                 # FastAPI WebApp backend with WebSocket telemetry
+    ├── dashboard_backend.py    # Live SUMO simulation backend service
+    ├── static/                 # 2D Web Dashboard static assets
+    └── 3d-dashboard/           # Modern 3D React + Three.js Graph Visualizer
 ```
 
 ---
 
-## Quick Start
+## ⚡ Quick Start
 
 ### Prerequisites
+* **Python 3.10+**
+* **SUMO (Simulation of Urban MObility)**: Ensure `SUMO_HOME` environment variable is set.
+* **Redis**: Required for FastAPI async WebSocket pub/sub telemetry.
+* **Node.js & npm** (Optional, for 3D React Dashboard).
 
-- Python 3.10+
-- [SUMO 1.18+](https://sumo.dlr.de/docs/Downloads.php) installed and added to PATH
-- CUDA GPU recommended for training (CPU works but is slower)
-
-### Installation
+### 1. Installation
+Clone the repository and install the dependencies:
 
 ```bash
-git clone https://github.com/KshitizD07/Intelli-Light.git
-cd Intelli-Light
+git clone https://github.com/KshitizD07/demo_intellilight.git
+cd demo_intellilight
 pip install -r requirements.txt
 ```
 
-### Train the Model
+---
+
+## 💻 Usage & Commands
+
+### 1. Unified CLI (`main.py`)
+
+Run training, testing, and GUI demonstration workflows:
 
 ```bash
-# Train with 3-corridor curriculum (recommended)
-python main.py train --timesteps 200000
+# Smoke test the SUMO GNN environment with random actions
+python main.py test-sumo-gnn
 
-# Resume from checkpoint
-python main.py train --resume models/checkpoints/intellilight_corridor_final.zip
+# Train the Graph Neural Network (GNN) model on randomized maps
+python main.py train-gnn
+
+# Train the Spatio-Temporal MARL (GAT + LSTM) model
+python main.py train-st-marl
+
+# Launch the SUMO GUI GNN demonstration
+python main.py gnn-gui
 ```
 
-### Evaluate
+### 2. Launch the Web App & Real-Time Dashboards
+
+Start the FastAPI telemetry server and SUMO backend:
 
 ```bash
-# Evaluate RL agent vs all baselines across all scenarios
-python main.py evaluate --model models/checkpoints/intellilight_corridor_final.zip
-
-# Run with SUMO GUI for visual inspection
-python main.py evaluate --model models/checkpoints/intellilight_corridor_final.zip --gui
+# Launch FastAPI telemetry backend
+uvicorn webapp.main:app --reload --port 8000
 ```
 
-### Run the Web Dashboard
+Access the **2D Interactive Dashboard** at:
+`http://localhost:8000`
 
-To monitor the simulation in real-time using the web dashboard:
+To launch the **3D React + Three.js Dashboard**:
 
-1. Guarantee a Redis server is installed and running locally:
-   ```bash
-   redis-server
-   ```
-2. Start the web application:
-   ```bash
-   cd webapp
-   uvicorn main:app --reload --port 8000
-   ```
-3. Open `http://localhost:8000` in your web browser.
-
-
----
-
-## Environment Details
-
-### Observation Space — `Box(42,)`
-Each of the 3 junctions contributes a 14-dimensional local feature vector:
-
-| Features | Dimensions | Description |
-|---|---|---|
-| Queue lengths | 4 | Halting vehicles per approach (N, S, E, W), normalized to [0, 1] |
-| Queue delta | 4 | Change in queue since last step, normalized to [−1, 1] |
-| Wait times | 4 | Mean per-approach wait in seconds, normalized to [0, 1] |
-| Emergency flag | 1 | Binary: emergency vehicle detected on any approach |
-| Current phase | 1 | Phase index normalized to [0, 1] |
-
-### Action Space — `MultiDiscrete([8] × 12)`
-For each junction × phase, the agent selects a green duration from:
-`[10, 15, 20, 25, 30, 35, 40, 45]` seconds
-
-### Reward Function
+```bash
+cd webapp/3d-dashboard
+npm install
+npm run dev
 ```
-R = throughput_bonus
-  + wait_time_penalty    (−0.08 × avg_wait)
-  + queue_penalty        (−0.04 × avg_queue)
-  + fairness_penalty     (−0.15 × direction imbalance)
-  + efficiency_bonus     (0.4 × throughput/queue ratio)
-  + pressure_bonus       (0.6 × pressure balance)
-  + starvation_penalty   (−8.0 × exponential, for wait > 60s)
-  + emergency_bonus      (+100.0 if emergency cleared)
+
+### 3. Generate Real City Maps (Lucknow OSM)
+
+Download and compile OpenStreetMap data for Lucknow:
+
+```bash
+python simulation/generate_lucknow.py
 ```
 
 ---
 
-## Evaluation Results
+## 📊 Baseline Benchmarks & Evaluation
 
-Evaluation across 20 episodes per scenario using the trained corridor model:
+Intelli-Light includes built-in implementations of standard adaptive traffic control algorithms for rigorous benchmarking:
 
-### Morning Rush (Peak Demand)
-| Controller | Avg Wait | Throughput | Queue Length |
-|---|---|---|---|
-| Fixed-Timer | 4.45s | Baseline | 8.5 veh |
-| Max-Pressure | 5.60s | −9.1% | 8.2 veh |
-| **IntelliLight-RL** | **3.47s** | **+1.0%** | **7.1 veh** |
+1. **Max-Pressure Controller (`MaxPressureController`)**:
+   * Industry-standard Varaiya (2013) algorithm.
+   * Dynamically serves approaches with maximum queue differential pressure.
+2. **Surtrac-Like Controller (`SurtracLikeController`)**:
+   * Schedule-driven cluster discharge algorithm.
+   * Allocates green duration based on approaching vehicle cluster estimates.
+3. **Fixed-Timer Controller (`FixedTimerController`)**:
+   * Traditional static green schedule baseline.
 
-### Evening Rush
-| Controller | Avg Wait | Queue Length |
-|---|---|---|
-| Fixed-Timer | 4.17s | 7.2 veh |
-| Max-Pressure | 5.68s | 9.5 veh |
-| **IntelliLight-RL** | **3.33s** | **6.5 veh** |
+To evaluate models and compare against baselines:
 
-### Weekend (Off-Peak)
-| Controller | Avg Wait | Queue Length |
-|---|---|---|
-| Fixed-Timer | 4.31s | 7.4 veh |
-| Max-Pressure | 6.00s | 10.4 veh |
-| **IntelliLight-RL** | **3.28s** | **6.4 veh** |
+```bash
+python -m training.evaluate_gnn
+```
 
 ---
 
-## Scaling to City-Wide Grids
+## 🛡️ Physical Deployment & Safety Testing
 
-> The current architecture is a **Centralized PPO** model trained on a fixed 3-junction corridor. Scaling it naively to 9 or 150 intersections would require retraining from scratch each time, since the network input size is hardcoded to 42 dimensions.
+### Testing NTCIP 1202 SNMP Hardware Bridge
 
-The planned solution is **Independent Learning with Parameter Sharing (ILPS)**.
-
-### How ILPS Works
-
-Instead of one large network that processes the entire city, ILPS trains a single **universal junction brain** that understands how to manage exactly one intersection. During deployment, every intersection in the city runs its own forward pass through the same shared weights.
-
-```
-Current (Centralized):         Proposed (ILPS):
-                               
-Global Obs [42]  →  PPO       Local Obs J1 [14] ─┐
-Global Act [12]  ←  Brain     Local Obs J2 [14] ──→ Shared Brain → Acts for all N nodes
-                               Local Obs J3 [14] ─┘
-                               Local Obs JN [14] ─┘
-```
-
-### Key Benefits
-
-| Property | Centralized (Current) | ILPS (Planned) |
-|---|---|---|
-| Observation size | Fixed at `N * 14` | Always `14` (1 junction) |
-| Action size | Fixed at `N * 4` | Always `4` (1 junction) |
-| Adding intersections | Requires full retraining | **Zero retraining** |
-| Training efficiency | 1× experience per step | **N× experience per step** |
-| City-scale deployment | Not feasible | ✅ |
-
-### Migration Path
-
-1. **Refactor `CorridorEnv`** to return a dict of per-junction observations instead of a flat concatenated vector.
-2. **Expand local observation** from 14 → 16 dims by adding upstream and downstream neighbor phase features to enable green-wave coordination without a centralized controller.
-3. **Flatten into SB3 batch** — treat N junctions as N parallel sub-environments sharing a single PPO model and experience replay buffer.
-4. **Transition to PettingZoo** for a standardized multi-agent API that integrates cleanly with SB3's `MARLWrapper`.
-
-This allows a model trained on the 3-junction corridor to be deployed directly on a 9×9 city grid with no modifications.
-
----
-
-## Configuration
-
-All system parameters are centralized in `configs/parameters.py`:
+Test physical signal cabinet communication in **Shadow Mode** (non-actuating log mode):
 
 ```python
-from configs.parameters import signal, safety, training, reward
+from deployment.controller import ShadowController
 
-# Example: change green duration options
-signal.GREEN_DURATIONS = [10, 15, 20, 25, 30, 35, 40, 45]
+# Initialize shadow bridge to cabinet IP
+controller = ShadowController(ip_address="192.168.1.100")
 
-# Example: tighten starvation penalty
-reward.WEIGHTS.starvation = -10.0
+# Simulate RL action execution (Phase 1 for 15 seconds)
+controller.apply_rl_decision(phase_idx=0, duration=15)
+```
 
-# Example: extend training
-training.TOTAL_TIMESTEPS = 500000
+### Failsafe Watchdog Verification
+
+```python
+from deployment.failsafe import FailsafeWatchdog
+
+watchdog = FailsafeWatchdog(max_inference_latency=0.5, max_wait_threshold=120)
+
+# Validate action duration prior to hardware execution
+safe_duration = watchdog.validate_action(
+    duration=20, 
+    inference_latency=0.08, 
+    obs_snapshot={"queues": [10, 12, 8, 15], "waits": [30, 25, 40, 105]}
+)
 ```
 
 ---
 
-## License
+## 📜 License
 
-This project is licensed under a **Proprietary License**. See the [LICENSE](LICENSE) file for more details.
-
----
-
-
-<div align="center">
-<sub>Built with SUMO · Stable-Baselines3 · Gymnasium · TraCI</sub>
-</div>
+This project is licensed under the terms of the [`LICENSE`](LICENSE) file.
