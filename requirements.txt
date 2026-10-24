@@ -33,3 +33,13 @@ tensorboard>=2.15.0
 
 # NTCIP 1202 Hardware Communication
 pysnmp-lextudio>=6.3.0
+
+# Sentinel ANPR & Urban Intelligence Layer
+pyproj>=3.8.0
+rapidfuzz>=3.0.0
+fastapi>=0.110.0
+uvicorn>=0.28.0
+websockets>=12.0
+httpx>=0.28.0
+opencv-python>=4.9.0
+pillow>=10.0.0
