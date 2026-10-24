@@ -23,6 +23,24 @@ logger = logging.getLogger(__name__)
 
 _SHARED_NET_CACHE: Dict[str, Any] = {}
 
+def get_shared_sumo_net(net_file: str = SUMO_NET_FILE):
+    """Returns a cached sumolib net instance, parsing the XML only once per process."""
+    global _SHARED_NET_CACHE
+    if net_file in _SHARED_NET_CACHE:
+        return _SHARED_NET_CACHE[net_file]
+
+    if not os.path.isfile(net_file):
+        logger.warning(f"[SUMONetCache] Network file not found: {net_file}")
+        return None
+    try:
+        net = sumolib.net.readNet(net_file, withInternal=False)
+        _SHARED_NET_CACHE[net_file] = net
+        logger.info(f"[SUMONetCache] Loaded {net_file} into memory cache")
+        return net
+    except Exception as e:
+        logger.error(f"[SUMONetCache] Failed to load {net_file}: {e}")
+        return None
+
 
 class RoadSnapper:
     """
@@ -31,25 +49,8 @@ class RoadSnapper:
 
     def __init__(self, net_file: str = SUMO_NET_FILE):
         self.net_file = net_file
-        self._net = None
+        self._net = get_shared_sumo_net(net_file)
         self._cache: Dict[Tuple[str, str], List[Tuple[float, float]]] = {}
-        self._init_network()
-
-    def _init_network(self):
-        global _SHARED_NET_CACHE
-        if self.net_file in _SHARED_NET_CACHE:
-            self._net = _SHARED_NET_CACHE[self.net_file]
-            return
-
-        if not os.path.isfile(self.net_file):
-            logger.warning(f"[RoadSnapper] Network file not found: {self.net_file}")
-            return
-        try:
-            self._net = sumolib.net.readNet(self.net_file, withInternal=False)
-            _SHARED_NET_CACHE[self.net_file] = self._net
-            logger.info("[RoadSnapper] SUMO network loaded for geometry snapping")
-        except Exception as e:
-            logger.error(f"[RoadSnapper] Failed to load network: {e}")
 
     def get_route_geometry(self, junction_sequence: List[str]) -> List[Tuple[float, float]]:
         """

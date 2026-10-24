@@ -14,6 +14,7 @@ from typing import List, Dict, Tuple, Optional
 
 import sumolib
 from sentinel.config import SUMO_NET_FILE
+from sentinel.tracker.road_snapper import get_shared_sumo_net
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +31,10 @@ class MarkovPathPredictor:
 
     def _init_topology(self):
         """Seed transitions with uniform priors from physical road connectivity."""
-        if not os.path.isfile(self.net_file):
-            logger.warning(f"[MarkovPredictor] Net file not found: {self.net_file}")
+        net = get_shared_sumo_net(self.net_file)
+        if net is None:
             return
         try:
-            net = sumolib.net.readNet(self.net_file, withInternal=False)
-            tls_nodes = {tls.getID() for tls in net.getTrafficLights()}
-
             for node in net.getNodes():
                 src_id = node.getID()
                 out_nodes = set()

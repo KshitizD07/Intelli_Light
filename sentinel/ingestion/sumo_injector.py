@@ -39,6 +39,7 @@ from sentinel.config import (
 )
 from sentinel.ingestion.event_bus import EventBus, sighting_event, alert_event
 from sentinel.registry import FlaggedVehicleRegistry
+from sentinel.tracker.road_snapper import get_shared_sumo_net
 
 logger = logging.getLogger(__name__)
 
@@ -54,13 +55,12 @@ class CameraGrid:
     """
 
     def __init__(self, net_file: str):
-        if not os.path.isfile(net_file):
+        self._net = get_shared_sumo_net(net_file)
+        if self._net is None:
             raise FileNotFoundError(
-                f"SUMO network file not found: {net_file}\n"
+                f"SUMO network file not found or invalid: {net_file}\n"
                 "Make sure the Lucknow map is present at simulation/lucknow_map/"
             )
-        logger.info(f"[CameraGrid] Loading network: {net_file}")
-        self._net = sumolib.net.readNet(net_file, withInternal=False)
         self.cameras: Dict[str, Dict] = {}  # junction_id -> {x, y, lng, lat}
         self._build()
 
@@ -145,10 +145,36 @@ class SUMOInjector:
     # Lifecycle
     # ------------------------------------------------------------------
 
+    def _resolve_binary(self) -> str:
+        """Locates the SUMO executable across PATH and standard installation trees."""
+        import shutil
+        target = self.binary
+        if shutil.which(target):
+            return target
+
+        candidates = [
+            os.path.join(os.environ.get("SUMO_HOME", ""), "bin", f"{target}.exe"),
+            os.path.join(r"C:\Program Files\Eclipse\Sumo\bin", f"{target}.exe"),
+            os.path.join(r"C:\Program Files (x86)\Eclipse\Sumo\bin", f"{target}.exe"),
+        ]
+        for c in candidates:
+            if os.path.isfile(c):
+                logger.info(f"[SUMOInjector] Resolved binary at: {c}")
+                return c
+
+        raise FileNotFoundError(
+            f"SUMO executable '{target}' not found in PATH or standard directories.\n"
+            "To run without a local SUMO installation, use turnkey demo mode:\n"
+            "  python main.py sentinel-demo\n"
+            "or start the web server with live traffic daemon:\n"
+            "  python main.py sentinel-web"
+        )
+
     def _start_sumo(self) -> None:
         """Launch SUMO via subprocess and connect TraCI."""
+        bin_path = self._resolve_binary()
         sumo_cmd = [
-            self.binary,
+            bin_path,
             "-c", self.cfg_file,
             "--remote-port", str(SUMO_PORT),
             "--step-length", str(SUMO_STEP_LENGTH),

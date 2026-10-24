@@ -3,21 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SENTINEL | City-Wide ANPR & Urban Intelligence (Intelli-Light 3.0)</title>
+  <title>SENTINEL | ICCC Tactical Surveillance & Urban Intelligence</title>
   
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   
   <style>
     :root {
-      --bg: #090d16;
-      --card-bg: rgba(15, 23, 42, 0.85);
-      --border: rgba(56, 189, 248, 0.2);
-      --text: #f1f5f9;
+      --bg: #070b14;
+      --card-bg: rgba(13, 22, 41, 0.90);
+      --border: rgba(56, 189, 248, 0.25);
+      --border-accent: rgba(56, 189, 248, 0.5);
+      --text: #f8fafc;
       --text-muted: #94a3b8;
       --cyan: #38bdf8;
+      --cyan-glow: rgba(56, 189, 248, 0.35);
       --amber: #f59e0b;
       --red: #ef4444;
+      --red-glow: rgba(239, 68, 68, 0.4);
       --green: #10b981;
     }
 
@@ -25,18 +28,18 @@
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-family: "JetBrains Mono", "SF Mono", Monaco, Consolas, "Segoe UI", Roboto, monospace;
       height: 100vh;
       overflow: hidden;
       display: flex;
       flex-direction: column;
     }
 
-    /* Top Navigation Header */
+    /* Top Tactical HUD Header */
     header {
-      background: rgba(11, 19, 38, 0.95);
+      background: rgba(9, 14, 26, 0.98);
       border-bottom: 1px solid var(--border);
-      padding: 12px 24px;
+      padding: 10px 20px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -46,44 +49,80 @@
     .brand {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 14px;
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: var(--cyan);
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     .badge-live {
-      background: rgba(16, 185, 129, 0.2);
+      background: rgba(16, 185, 129, 0.15);
       color: var(--green);
       border: 1px solid var(--green);
-      padding: 3px 8px;
-      border-radius: 4px;
-      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 10px;
       font-weight: 700;
-      letter-spacing: 0.5px;
-      animation: pulse 2s infinite;
+      letter-spacing: 1px;
+      animation: pulse 1.8s infinite;
+    }
+
+    .badge-iccc {
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--cyan);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
     }
 
     @keyframes pulse {
       0% { opacity: 1; }
-      50% { opacity: 0.5; }
+      50% { opacity: 0.4; }
       100% { opacity: 1; }
     }
 
     .metrics-bar {
       display: flex;
+      align-items: center;
       gap: 20px;
-      font-size: 13px;
+      font-size: 11px;
     }
 
     .metric-item span {
       color: var(--text-muted);
       margin-right: 6px;
+      text-transform: uppercase;
     }
 
     .metric-item strong {
       color: var(--cyan);
-      font-size: 14px;
+      font-size: 13px;
     }
 
-    /* Main Layout */
+    .audio-btn {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Main Container */
     .dashboard-container {
       display: flex;
       flex: 1;
@@ -94,14 +133,14 @@
     #map {
       flex: 1;
       height: 100%;
-      background: #020617;
+      background: #030712;
     }
 
-    /* Floating Side Panel */
+    /* Side Control Drawer */
     .side-panel {
-      width: 420px;
+      width: 440px;
       background: var(--card-bg);
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(16px);
       border-left: 1px solid var(--border);
       display: flex;
       flex-direction: column;
@@ -111,20 +150,20 @@
     .tabs {
       display: flex;
       border-bottom: 1px solid var(--border);
-      background: rgba(9, 13, 22, 0.6);
+      background: rgba(7, 11, 20, 0.8);
     }
 
     .tab-btn {
       flex: 1;
-      padding: 12px 8px;
+      padding: 10px 4px;
       background: transparent;
       border: none;
       color: var(--text-muted);
-      font-size: 12px;
-      font-weight: 600;
+      font-size: 11px;
+      font-weight: 700;
       cursor: pointer;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.8px;
       transition: all 0.2s;
     }
 
@@ -137,7 +176,7 @@
     .tab-content {
       flex: 1;
       overflow-y: auto;
-      padding: 16px;
+      padding: 14px;
       display: none;
     }
 
@@ -145,30 +184,35 @@
       display: block;
     }
 
-    /* Cards & Lists */
+    /* Cards */
     .card {
-      background: rgba(30, 41, 59, 0.6);
+      background: rgba(15, 23, 42, 0.7);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 14px;
-      margin-bottom: 14px;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 12px;
     }
 
     .card-title {
-      font-size: 12px;
-      font-weight: 700;
+      font-size: 11px;
+      font-weight: 800;
       color: var(--cyan);
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 1px;
       margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
     .alert-card {
-      border-left: 4px solid var(--red);
+      border-left: 3px solid var(--red);
       background: rgba(239, 68, 68, 0.08);
-      margin-bottom: 10px;
-      padding: 12px;
+      margin-bottom: 8px;
+      padding: 10px;
       border-radius: 4px;
+      font-size: 11px;
+      animation: alertSlide 0.3s ease-out;
     }
 
     .alert-card.warning {
@@ -176,28 +220,33 @@
       background: rgba(245, 158, 11, 0.08);
     }
 
+    @keyframes alertSlide {
+      from { transform: translateX(20px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
     .alert-header {
       display: flex;
       justify-content: space-between;
       margin-bottom: 4px;
-      font-size: 13px;
-      font-weight: 700;
+      font-size: 12px;
+      font-weight: 800;
     }
 
     .alert-detail {
-      font-size: 12px;
       color: var(--text-muted);
+      line-height: 1.4;
     }
 
-    /* Form Controls */
+    /* Forms */
     .input-group {
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
 
     .input-group label {
       display: block;
-      font-size: 11px;
-      font-weight: 600;
+      font-size: 10px;
+      font-weight: 700;
       color: var(--text-muted);
       margin-bottom: 4px;
       text-transform: uppercase;
@@ -205,20 +254,23 @@
 
     .input-group input, .input-group select {
       width: 100%;
-      background: rgba(15, 23, 42, 0.9);
+      background: rgba(7, 11, 20, 0.95);
       border: 1px solid var(--border);
       color: var(--text);
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-size: 13px;
+      padding: 7px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: inherit;
     }
 
     .btn {
       width: 100%;
-      padding: 10px;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 700;
+      padding: 9px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
       border: none;
       cursor: pointer;
       transition: all 0.2s;
@@ -227,10 +279,12 @@
     .btn-danger {
       background: #dc2626;
       color: white;
+      box-shadow: 0 0 10px rgba(220, 38, 38, 0.3);
     }
 
     .btn-danger:hover {
       background: #b91c1c;
+      box-shadow: 0 0 15px rgba(220, 38, 38, 0.5);
     }
 
     .btn-cyan {
@@ -243,141 +297,270 @@
       background: #0369a1;
     }
 
-    /* O-D Matrix Table */
+    /* Optical Camera HUD Floating Card */
+    #camera-feed-modal {
+      display: none;
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      width: 320px;
+      background: rgba(9, 14, 26, 0.95);
+      border: 1px solid var(--cyan);
+      box-shadow: 0 0 20px var(--cyan-glow);
+      border-radius: 6px;
+      padding: 12px;
+      z-index: 1001;
+    }
+
+    .feed-viewport {
+      width: 100%;
+      height: 160px;
+      background: #020617;
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 8px 0;
+    }
+
+    .feed-grid {
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(rgba(56, 189, 248, 0.08) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(56, 189, 248, 0.08) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    .feed-crosshair {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border: 1px solid var(--cyan);
+      border-radius: 50%;
+    }
+
+    .feed-crosshair::before {
+      content: "";
+      position: absolute;
+      top: 11px;
+      left: -6px;
+      right: -6px;
+      height: 1px;
+      background: var(--cyan);
+    }
+
+    .feed-crosshair::after {
+      content: "";
+      position: absolute;
+      left: 11px;
+      top: -6px;
+      bottom: -6px;
+      width: 1px;
+      background: var(--cyan);
+    }
+
+    .hud-text {
+      font-size: 9px;
+      color: var(--cyan);
+      letter-spacing: 0.5px;
+    }
+
+    /* Tables */
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 12px;
+      font-size: 11px;
     }
 
     th, td {
-      padding: 8px 6px;
+      padding: 6px 4px;
       text-align: left;
       border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     }
 
     th {
       color: var(--text-muted);
-      font-weight: 600;
-      font-size: 11px;
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+
+    .audit-pre {
+      font-size: 10px;
+      line-height: 1.4;
+      background: #020617;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
     }
   </style>
 </head>
 <body>
 
+  <!-- Top Tactical HUD -->
   <header>
     <div class="brand">
-      <h2 style="font-size: 18px; font-weight: 800; letter-spacing: 0.5px;">
-        <span style="color: var(--cyan);">SENTINEL</span> | CITY INTELLIGENCE
-      </h2>
-      <span class="badge-live">LIVE TraCI STREAM</span>
-      <span style="font-size: 11px; color: var(--text-muted);">BEL / SIH26127</span>
+      <div class="brand-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="m4.93 4.93 4.24 4.24"></path>
+          <path d="m14.83 9.17 4.24-4.24"></path>
+          <path d="m14.83 14.83 4.24 4.24"></path>
+          <path d="m9.17 14.83-4.24 4.24"></path>
+          <circle cx="12" cy="12" r="2"></circle>
+        </svg>
+        <span>SENTINEL</span>
+      </div>
+      <span class="badge-live">LIVE TELEMETRY STREAM</span>
+      <span class="badge-iccc">BEL / SIH26127</span>
     </div>
 
     <div class="metrics-bar">
-      <div class="metric-item"><span>Active Vehicles:</span><strong id="m-vehicles">0</strong></div>
-      <div class="metric-item"><span>Cameras Active:</span><strong id="m-cameras">0</strong></div>
-      <div class="metric-item"><span>Blacklist Hits:</span><strong id="m-alerts" style="color: var(--red);">0</strong></div>
+      <div class="metric-item"><span>Fleet Active:</span><strong id="m-vehicles">0</strong></div>
+      <div class="metric-item"><span>Cameras:</span><strong id="m-cameras">0</strong></div>
+      <div class="metric-item"><span>Threat Hits:</span><strong id="m-alerts" style="color: var(--red);">0</strong></div>
       <div class="metric-item"><span>Avg Anomaly:</span><strong id="m-anomaly">0.00</strong></div>
+      <button class="audio-btn" id="audio-toggle" onclick="toggleAudio()">
+        <span id="audio-icon">&#128266;</span> AUDIO ALARMS: ON
+      </button>
     </div>
   </header>
 
   <div class="dashboard-container">
+    <!-- Geospatial Map Viewport -->
     <div id="map"></div>
 
+    <!-- Live Optical Camera HUD Modal -->
+    <div id="camera-feed-modal">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span class="hud-text" id="hud-cam-id">CAM_FEED // OPTICAL_01</span>
+        <button style="background: none; border: none; color: var(--text-muted); cursor: pointer;" onclick="closeCameraModal()">&times;</button>
+      </div>
+      <div class="feed-viewport">
+        <div class="feed-grid"></div>
+        <div class="feed-crosshair"></div>
+        <div style="position: absolute; top: 8px; left: 8px;" class="hud-text">REC [●] 30 FPS</div>
+        <div style="position: absolute; bottom: 8px; left: 8px;" class="hud-text" id="hud-plate-box">OCR: SCANNING...</div>
+        <div style="position: absolute; bottom: 8px; right: 8px;" class="hud-text">YOLOv8 // PP-OCR</div>
+      </div>
+      <div style="font-size: 10px; color: var(--text-muted); display: flex; justify-content: space-between;">
+        <span>GPS: <span id="hud-cam-gps" style="color: var(--cyan);">--</span></span>
+        <span>STATUS: <span style="color: var(--green);">OPERATIONAL</span></span>
+      </div>
+    </div>
+
+    <!-- Tactical Control Side Panel -->
     <div class="side-panel">
       <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('alerts')">Alerts</button>
+        <button class="tab-btn active" onclick="switchTab('alerts')">Threats</button>
         <button class="tab-btn" onclick="switchTab('intercept')">Intercept</button>
-        <button class="tab-btn" onclick="switchTab('analytics')">O-D Analytics</button>
-        <button class="tab-btn" onclick="switchTab('registry')">Registry</button>
+        <button class="tab-btn" onclick="switchTab('analytics')">O-D Mobility</button>
+        <button class="tab-btn" onclick="switchTab('audit')">Audit Ledger</button>
+        <button class="tab-btn" onclick="switchTab('registry')">Watchlist</button>
       </div>
 
-      <!-- Tab: Live Alerts -->
+      <!-- Tab: Real-Time Alerts -->
       <div id="tab-alerts" class="tab-content active">
-        <div class="card-title">Real-Time Threat Feed</div>
+        <div class="card-title">
+          <span>Active Threat Feed</span>
+          <span style="font-size: 10px; color: var(--text-muted);">AUTO-CORRELATED</span>
+        </div>
         <div id="alert-list">
-          <div style="color: var(--text-muted); font-size: 12px; text-align: center; padding: 20px;">
-            Awaiting camera detection events...
+          <div style="color: var(--text-muted); font-size: 11px; text-align: center; padding: 20px;">
+            Awaiting optical sensor trigger events...
           </div>
         </div>
       </div>
 
-      <!-- Tab: Intercept Orchestrator -->
+      <!-- Tab: Tactical Intercept -->
       <div id="tab-intercept" class="tab-content">
         <div class="card">
-          <div class="card-title">Adaptive Signal Intervention</div>
-          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
-            Manipulate downstream signal controllers via NTCIP 1202 failsafe to box in suspects using organic traffic buildup.
+          <div class="card-title">Traffic Signal Manipulation</div>
+          <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px; line-height: 1.4;">
+            Execute downstream NTCIP signal overrides to form a controlled red-wall perimeter, trapping suspect vehicles in natural congestion.
           </p>
 
           <div class="input-group">
-            <label>Target Plate</label>
-            <input type="text" id="int-plate" placeholder="e.g. UP32XY9999" value="UP32XY9999" />
+            <label>Target License Plate</label>
+            <input type="text" id="int-plate" value="UP32XY9999" />
           </div>
 
           <div class="input-group">
-            <label>Current Known Junction</label>
-            <input type="text" id="int-junction" placeholder="e.g. J_042" value="J_042" />
+            <label>Current Known Location</label>
+            <input type="text" id="int-junction" value="cluster_2229834379_2229834384_2234594449" />
           </div>
 
           <div class="input-group">
-            <label>Intervention Reason</label>
-            <input type="text" id="int-reason" placeholder="e.g. Stolen vehicle pursuit" value="Stolen vehicle pursuit" />
+            <label>Mission Reason</label>
+            <input type="text" id="int-reason" value="Stolen vehicle pursuit" />
           </div>
 
-          <button class="btn btn-danger" onclick="triggerIntercept()">TRIGGER TRAFFIC INTERCEPT</button>
-          <button class="btn btn-cyan" onclick="cancelIntercept()">CANCEL INTERCEPT</button>
+          <button class="btn btn-danger" onclick="triggerIntercept()">TRIGGER RED-WALL INTERCEPT</button>
+          <button class="btn btn-cyan" onclick="cancelIntercept()">CANCEL INTERCEPT DIRECTIVE</button>
         </div>
 
         <div class="card">
-          <div class="card-title">Active Perimeter Overrides</div>
-          <div id="override-status" style="font-size: 12px; color: var(--text-muted);">
-            No active intercept missions.
+          <div class="card-title">Perimeter Status</div>
+          <div id="override-status" style="font-size: 11px; color: var(--text-muted);">
+            No active perimeter overrides.
           </div>
         </div>
       </div>
 
-      <!-- Tab: O-D Analytics -->
+      <!-- Tab: O-D Mobility Matrix -->
       <div id="tab-analytics" class="tab-content">
         <div class="card">
-          <div class="card-title">Origin-Destination Trips</div>
+          <div class="card-title">Origin-Destination Matrix</div>
           <table>
             <thead>
               <tr>
                 <th>Origin</th>
                 <th>Destination</th>
                 <th>Trips</th>
-                <th>Avg Time</th>
+                <th>Avg Transit</th>
               </tr>
             </thead>
             <tbody id="od-table-body">
-              <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Calculating trips...</td></tr>
+              <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Aggregating trips...</td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      <!-- Tab: Flagged Registry -->
+      <!-- Tab: Cryptographic Audit Ledger -->
+      <div id="tab-audit" class="tab-content">
+        <div class="card-title">
+          <span>SHA-256 Chained Audit Trail</span>
+          <button class="btn btn-cyan" style="width: auto; padding: 2px 6px; font-size: 9px;" onclick="loadAuditTrail()">REFRESH</button>
+        </div>
+        <div class="audit-pre" id="audit-trail-display">Loading tamper-evident audit records...</div>
+      </div>
+
+      <!-- Tab: Flagged Watchlist -->
       <div id="tab-registry" class="tab-content">
         <div class="card">
-          <div class="card-title">Register Suspicious Vehicle</div>
+          <div class="card-title">Register Target Vehicle</div>
           <div class="input-group">
-            <label>License Plate</label>
+            <label>Plate String</label>
             <input type="text" id="reg-plate" placeholder="UP32AB1234" />
           </div>
           <div class="input-group">
-            <label>Reason</label>
-            <input type="text" id="reg-reason" placeholder="Surveillance / Wanted" />
+            <label>Flag Reason</label>
+            <input type="text" id="reg-reason" placeholder="Suspect Surveillance" />
           </div>
           <div class="input-group">
-            <label>Authority</label>
-            <input type="text" id="reg-auth" placeholder="Lucknow Police / STF" />
+            <label>Originating Authority</label>
+            <input type="text" id="reg-auth" placeholder="Lucknow Police HQ" />
           </div>
-          <button class="btn btn-cyan" onclick="registerVehicle()">ADD TO WATCHLIST</button>
+          <button class="btn btn-cyan" onclick="registerVehicle()">ENROLL IN REGISTRY</button>
         </div>
 
-        <div class="card-title">Watchlist Database</div>
+        <div class="card-title">Authoritative Registry</div>
         <div id="registry-list"></div>
       </div>
     </div>
@@ -388,11 +571,10 @@
 
   <script>
     // -----------------------------------------------------------------------
-    // Map Setup
+    // Geospatial Map Initialization
     // -----------------------------------------------------------------------
     const map = L.map('map', { zoomControl: true }).setView([26.8467, 80.9462], 13);
 
-    // Dark Map Tiles
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
       subdomains: 'abcd',
@@ -402,6 +584,8 @@
     let vehicleMarkers = {};
     let trajectoryPolylines = {};
     let cameraMarkers = {};
+    let perimeterPolygon = null;
+    let cameraCoordinates = {};
 
     function switchTab(tabName) {
       document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -409,10 +593,70 @@
       
       event.target.classList.add('active');
       document.getElementById('tab-' + tabName).classList.add('active');
+
+      if (tabName === 'audit') loadAuditTrail();
     }
 
     // -----------------------------------------------------------------------
-    // WebSocket Live Ingestion
+    // Web Audio Synthesized Tactical Alarm
+    // -----------------------------------------------------------------------
+    let audioContext = null;
+    let audioEnabled = true;
+
+    function toggleAudio() {
+      audioEnabled = !audioEnabled;
+      const btn = document.getElementById('audio-toggle');
+      btn.innerHTML = audioEnabled 
+        ? '<span>&#128266;</span> AUDIO ALARMS: ON' 
+        : '<span>&#128263;</span> AUDIO ALARMS: MUTED';
+    }
+
+    function playTacticalAlarm(isCritical = false) {
+      if (!audioEnabled) return;
+      try {
+        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const now = audioContext.currentTime;
+
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        osc.type = isCritical ? 'sawtooth' : 'sine';
+        osc.frequency.setValueAtTime(isCritical ? 880 : 587, now);
+        osc.frequency.exponentialRampToValueAtTime(isCritical ? 440 : 880, now + 0.15);
+
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.3);
+      } catch (e) {
+        // AudioContext prevented before user interaction
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // Optical Camera HUD Modal Simulator
+    // -----------------------------------------------------------------------
+    function openCameraModal(jid, cam) {
+      const modal = document.getElementById('camera-feed-modal');
+      document.getElementById('hud-cam-id').innerText = `CAM_FEED // ${jid.slice(0, 16)}`;
+      document.getElementById('hud-cam-gps').innerText = `${cam.lat.toFixed(4)}, ${cam.lng.toFixed(4)}`;
+      modal.style.display = 'block';
+
+      setTimeout(() => {
+        document.getElementById('hud-plate-box').innerText = `OCR: LPR_DETECT [UP32XY9999] CONF: 0.96`;
+      }, 600);
+    }
+
+    function closeCameraModal() {
+      document.getElementById('camera-feed-modal').style.display = 'none';
+    }
+
+    // -----------------------------------------------------------------------
+    // WebSocket Real-Time Ingestion
     // -----------------------------------------------------------------------
     let socket;
     let alertCount = 0;
@@ -424,7 +668,7 @@
       socket = new WebSocket(wsUrl);
 
       socket.onopen = () => {
-        console.log("[Sentinel WS] Connected to live telemetery stream");
+        console.log("[Sentinel WS] Connected to ICCC stream");
       };
 
       socket.onmessage = (event) => {
@@ -437,88 +681,136 @@
       };
 
       socket.onclose = () => {
-        console.warn("[Sentinel WS] Disconnected. Reconnecting in 2s...");
-        setTimeout(connectWebSocket, 2000);
+        setTimeout(connectWebSocket, 1500);
       };
     }
 
     function handleLiveUpdate(data) {
-      // 1. Update Metrics
+      // 1. Metrics Update
       if (data.metrics) {
         document.getElementById('m-vehicles').innerText = data.metrics.active_vehicles || 0;
         document.getElementById('m-cameras').innerText = data.metrics.active_cameras || 0;
         document.getElementById('m-anomaly').innerText = (data.metrics.avg_anomaly || 0).toFixed(2);
       }
 
-      // 2. Plot Camera Markers
+      // 2. Camera Markers
       if (data.cameras && Object.keys(cameraMarkers).length === 0) {
+        cameraCoordinates = data.cameras;
         Object.entries(data.cameras).forEach(([jid, cam]) => {
           if (cam.lat && cam.lng) {
             const m = L.circleMarker([cam.lat, cam.lng], {
-              radius: 4,
+              radius: 5,
               color: '#38bdf8',
-              fillColor: '#0284c7',
-              fillOpacity: 0.6,
-              weight: 1
-            }).bindTooltip(`Camera: ${jid}`, { direction: 'top' }).addTo(map);
+              fillColor: '#0369a1',
+              fillOpacity: 0.8,
+              weight: 1.5
+            }).bindTooltip(`<b>Camera:</b> ${jid}`, { direction: 'top' })
+              .on('click', () => openCameraModal(jid, cam))
+              .addTo(map);
             cameraMarkers[jid] = m;
           }
         });
       }
 
-      // 3. Update Vehicle Trajectories & Markers
-      if (data.vehicles) {
-        Object.values(data.vehicles).forEach(v => {
-          if (!v.last_sighting || !v.last_sighting.lat) return;
-
-          const lat = v.last_sighting.lat;
-          const lng = v.last_sighting.lng;
+      // 3. Continuous Fleet Movement
+      if (data.fleet) {
+        data.fleet.forEach(v => {
           const isFlagged = v.is_flagged;
-          const anomaly = v.anomaly_score || 0;
+          const isHalted = v.is_halted;
+          const markerColor = isHalted ? '#dc2626' : (isFlagged ? '#ef4444' : '#38bdf8');
 
-          const markerColor = isFlagged ? '#ef4444' : (anomaly > 0.6 ? '#f59e0b' : '#38bdf8');
+          let popupContent = `<b>${v.plate}</b><br/>Speed: ${v.speed_mps} m/s`;
+          if (isHalted) {
+            popupContent += `<br/><strong style="color: #ef4444;">TRAPPED BY RED-WALL</strong>`;
+          }
 
           if (!vehicleMarkers[v.plate]) {
-            vehicleMarkers[v.plate] = L.circleMarker([lat, lng], {
-              radius: 6,
+            vehicleMarkers[v.plate] = L.circleMarker([v.lat, v.lng], {
+              radius: isFlagged ? 8 : 5,
               color: markerColor,
               fillColor: markerColor,
               fillOpacity: 0.9,
-              weight: 2
-            }).bindPopup(`<b>${v.plate}</b><br/>Anomaly Score: ${anomaly.toFixed(2)}`).addTo(map);
+              weight: isFlagged ? 3 : 1
+            }).bindPopup(popupContent).addTo(map);
           } else {
-            vehicleMarkers[v.plate].setLatLng([lat, lng]);
-            vehicleMarkers[v.plate].setStyle({ color: markerColor, fillColor: markerColor });
+            vehicleMarkers[v.plate].setLatLng([v.lat, v.lng]);
+            vehicleMarkers[v.plate].setStyle({ color: markerColor, fillColor: markerColor, radius: isFlagged ? 8 : 5 });
+            vehicleMarkers[v.plate].setPopupContent(popupContent);
           }
+        });
+      }
 
-          // Trajectory lines
+      // 4. Vehicle Trajectories
+      if (data.vehicles) {
+        Object.values(data.vehicles).forEach(v => {
           if (v.geometry && v.geometry.length > 1) {
             const latlngs = v.geometry.map(coord => [coord[1], coord[0]]);
+            const trailColor = v.is_flagged ? '#ef4444' : (v.anomaly_score > 0.6 ? '#f59e0b' : '#38bdf8');
             if (!trajectoryPolylines[v.plate]) {
               trajectoryPolylines[v.plate] = L.polyline(latlngs, {
-                color: markerColor,
+                color: trailColor,
                 weight: 3,
                 opacity: 0.7
               }).addTo(map);
             } else {
               trajectoryPolylines[v.plate].setLatLngs(latlngs);
-              trajectoryPolylines[v.plate].setStyle({ color: markerColor });
+              trajectoryPolylines[v.plate].setStyle({ color: trailColor });
             }
           }
         });
       }
 
-      // 4. Alerts
+      // 5. Active Overrides & Red-Wall Perimeter Polygon
+      if (data.overrides) {
+        const overrides = data.overrides;
+        const jids = Object.keys(overrides);
+        if (jids.length > 0) {
+          const first = Object.values(overrides)[0];
+          document.getElementById('override-status').innerHTML = `
+            <strong style="color: #ef4444;">RED-WALL ACTIVE:</strong> ${first.mission_id}<br/>
+            Target: <strong>${first.target_plate}</strong><br/>
+            Locked Nodes: ${jids.length} intersections<br/>
+            TTL Remaining: <strong>${first.remaining_ttl}s</strong>
+          `;
+
+          const points = jids
+            .filter(jid => cameraCoordinates[jid])
+            .map(jid => [cameraCoordinates[jid].lat, cameraCoordinates[jid].lng]);
+
+          if (points.length >= 3) {
+            if (!perimeterPolygon) {
+              perimeterPolygon = L.polygon(points, {
+                color: '#ef4444',
+                fillColor: '#ef4444',
+                fillOpacity: 0.18,
+                weight: 2,
+                dashArray: '5, 5'
+              }).addTo(map);
+            } else {
+              perimeterPolygon.setLatLngs(points);
+            }
+          }
+        } else {
+          document.getElementById('override-status').innerText = 'No active perimeter overrides.';
+          if (perimeterPolygon) {
+            map.removeLayer(perimeterPolygon);
+            perimeterPolygon = null;
+          }
+        }
+      }
+
+      // 6. Threat Alarms
       if (data.alert) {
         alertCount++;
         document.getElementById('m-alerts').innerText = alertCount;
         renderAlert(data.alert);
+        playTacticalAlarm(data.alert.type === 'alert');
       }
     }
 
     function renderAlert(alert) {
       const list = document.getElementById('alert-list');
-      if (list.innerText.includes('Awaiting camera')) list.innerHTML = '';
+      if (list.innerText.includes('Awaiting optical')) list.innerHTML = '';
 
       const isBlacklist = alert.type === 'alert';
       const card = document.createElement('div');
@@ -526,14 +818,14 @@
       card.innerHTML = `
         <div class="alert-header">
           <span style="color: ${isBlacklist ? '#ef4444' : '#f59e0b'}">
-            ${isBlacklist ? 'BLACKLIST HIT' : 'ANOMALY DETECTED'}
+            ${isBlacklist ? 'CRITICAL BLACKLIST SIGHTING' : 'SUSPICIOUS ROUTE DETOUR'}
           </span>
           <span>${alert.plate}</span>
         </div>
         <div class="alert-detail">
-          Junction: <b>${alert.junction_id}</b> | Time: ${new Date(alert.timestamp * 1000).toLocaleTimeString()}
+          Checkpoint: <b>${alert.junction_id.slice(0, 18)}</b> | Time: ${new Date(alert.timestamp * 1000).toLocaleTimeString()}
         </div>
-        <div class="alert-detail" style="margin-top: 4px;">
+        <div class="alert-detail" style="margin-top: 4px; font-weight: 600;">
           ${alert.extra?.reason || alert.extra?.detail || ''}
         </div>
       `;
@@ -554,15 +846,8 @@
         body: JSON.stringify({ plate, current_junction: junction, authorized_by: 'OPERATOR_KSHITIZ', reason })
       });
       const data = await res.json();
-      if (data.success) {
-        document.getElementById('override-status').innerHTML = `
-          <strong style="color: #ef4444;">ACTIVE INTERCEPT</strong><br/>
-          Target: ${data.plate}<br/>
-          Perimeter Locked: ${data.overridden_junctions.join(', ')}<br/>
-          TTL: ${data.ttl_seconds}s
-        `;
-      } else {
-        alert('Intercept Failed: ' + data.error);
+      if (!data.success) {
+        alert('Intercept Directive Failed: ' + data.error);
       }
     }
 
@@ -573,7 +858,6 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plate, cancelled_by: 'OPERATOR_KSHITIZ' })
       });
-      document.getElementById('override-status').innerText = 'No active intercept missions.';
     }
 
     async function registerVehicle() {
@@ -594,10 +878,10 @@
       const data = await res.json();
       const list = document.getElementById('registry-list');
       list.innerHTML = data.map(v => `
-        <div style="font-size: 12px; padding: 8px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;">
+        <div style="font-size: 11px; padding: 7px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;">
           <span><strong>${v.plate}</strong> (${v.flag_reason})</span>
           <span style="color: ${v.intercept_authorized ? '#10b981' : '#f59e0b'}">
-            ${v.intercept_authorized ? 'AUTH' : 'MONITOR'}
+            ${v.intercept_authorized ? 'AUTHORIZED' : 'MONITOR'}
           </span>
         </div>
       `).join('');
@@ -608,19 +892,36 @@
       const data = await res.json();
       const tbody = document.getElementById('od-table-body');
       if (data.length === 0) return;
-      tbody.innerHTML = data.slice(0, 8).map(row => `
+      tbody.innerHTML = data.slice(0, 10).map(row => `
         <tr>
-          <td><strong>${row.origin_junction}</strong></td>
-          <td><strong>${row.destination_junction}</strong></td>
+          <td><strong>${row.origin_junction.slice(0, 10)}</strong></td>
+          <td><strong>${row.destination_junction.slice(0, 10)}</strong></td>
           <td>${row.trip_count}</td>
           <td>${row.avg_duration_s.toFixed(0)}s</td>
         </tr>
       `).join('');
     }
 
+    async function loadAuditTrail() {
+      const res = await fetch('/api/audit');
+      const data = await res.json();
+      const display = document.getElementById('audit-trail-display');
+      if (data.length === 0) {
+        display.innerText = "No audit records committed yet.";
+        return;
+      }
+      display.innerText = data.map(record => 
+        `[${new Date(record.timestamp * 1000).toISOString()}] ${record.action}\n` +
+        `  Target: ${record.details?.plate || '--'} | Officer: ${record.details?.authorized_by || '--'}\n` +
+        `  Hash: ${record.record_hash}\n` +
+        `  Prev: ${record.prev_hash}\n`
+      ).join('\n');
+    }
+
     // Initialize
     connectWebSocket();
     loadRegistry();
+    loadODMatrix();
     setInterval(loadODMatrix, 5000);
   </script>
 </body>

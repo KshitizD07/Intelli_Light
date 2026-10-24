@@ -38,6 +38,7 @@ from sentinel.tracker.trajectory_store import TrajectoryStore
 from sentinel.anomaly.gnn_bridge import GNNTelemetryBridge
 from sentinel.anomaly.scorer import AnomalyEngine
 from sentinel.intercept.orchestrator import InterceptOrchestrator
+from sentinel.ingestion.traffic_daemon import TrafficSimulationDaemon
 
 logger = logging.getLogger("sentinel.server")
 
@@ -52,6 +53,15 @@ trajectory_store = TrajectoryStore()
 gnn_bridge = GNNTelemetryBridge()
 anomaly_engine = AnomalyEngine(bus, gnn_bridge=gnn_bridge)
 intercept_orchestrator = InterceptOrchestrator(registry)
+
+traffic_daemon = TrafficSimulationDaemon(
+    bus=bus,
+    registry=registry,
+    camera_grid=camera_grid,
+    gnn_bridge=gnn_bridge,
+    orchestrator=intercept_orchestrator,
+    tick_interval_s=1.0,
+)
 
 active_websockets: List[WebSocket] = []
 
@@ -125,16 +135,48 @@ async def event_bus_listener():
         bus.task_done()
 
 
+async def fleet_broadcaster():
+    """Periodically streams fleet coordinates and signal override states to WebSockets."""
+    while True:
+        await asyncio.sleep(1.0)
+        if active_websockets:
+            fleet = traffic_daemon.get_fleet_telemetry()
+            overrides = intercept_orchestrator.get_signal_overrides()
+            avg_anom = (
+                sum(t.anomaly_score for t in tracker.all_traces().values()) / max(1, tracker.active_count)
+                if tracker.active_count > 0 else 0.0
+            )
+            payload = {
+                "fleet": fleet,
+                "overrides": overrides,
+                "metrics": {
+                    "active_vehicles": len(fleet),
+                    "active_cameras": len(camera_grid.cameras),
+                    "avg_anomaly": round(avg_anom, 3),
+                }
+            }
+            for ws in list(active_websockets):
+                try:
+                    await ws.send_json(payload)
+                except Exception:
+                    pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("[SentinelServer] Starting background tracker & broadcast worker...")
+    logger.info("[SentinelServer] Starting background tracker, simulation daemon & broadcast worker...")
     registry.seed_demo()
     tracker_task = asyncio.create_task(tracker.run())
     listener_task = asyncio.create_task(event_bus_listener())
+    daemon_task = asyncio.create_task(traffic_daemon.run())
+    fleet_task = asyncio.create_task(fleet_broadcaster())
     yield
+    traffic_daemon.stop()
     tracker.stop()
     tracker_task.cancel()
     listener_task.cancel()
+    daemon_task.cancel()
+    fleet_task.cancel()
 
 
 # ---------------------------------------------------------------------------
@@ -242,6 +284,28 @@ def get_origin_destination_matrix():
 @app.get("/api/trajectories")
 def get_active_trajectories():
     return trajectory_store.get_all_active_trajectories()
+
+
+@app.get("/api/fleet")
+def get_fleet_telemetry():
+    return traffic_daemon.get_fleet_telemetry()
+
+
+@app.get("/api/audit")
+def get_audit_trail(limit: int = 50):
+    import json
+    from sentinel.config import AUDIT_LOG_PATH
+    if not os.path.exists(AUDIT_LOG_PATH):
+        return []
+    records = []
+    with open(AUDIT_LOG_PATH, "r", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                try:
+                    records.append(json.loads(line.strip()))
+                except Exception:
+                    pass
+    return records[-limit:]
 
 
 # ---------------------------------------------------------------------------
