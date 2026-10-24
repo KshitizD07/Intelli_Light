@@ -40,10 +40,26 @@ def run_gnn_gui(_args):
     run_gnn_gui_main()
 
 
+def run_sentinel_demo(_args):
+    """Launch the Sentinel ANPR trajectory tracking and intercept demo."""
+    from sentinel.demo import main as demo_main
+
+    demo_main()
+
+
+def run_sentinel_web(args):
+    """Launch the Sentinel live GIS surveillance dashboard."""
+    import uvicorn
+    import os
+
+    print(f"Starting Sentinel Web Intelligence Dashboard on http://{args.host}:{args.port}")
+    uvicorn.run("sentinel.server:app", host=args.host, port=args.port, reload=False)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="intelli-light",
-        description="Intelli-Light GNN research CLI",
+        description="Intelli-Light 3.0 & Sentinel Urban Intelligence Platform",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -70,6 +86,20 @@ if __name__ == "__main__":
         help="Launch the SUMO GUI GNN demonstration",
     )
     gnn_gui_p.set_defaults(func=run_gnn_gui)
+
+    sentinel_demo_p = subparsers.add_parser(
+        "sentinel-demo",
+        help="Launch the turnkey Sentinel ANPR trajectory tracking & intercept demo",
+    )
+    sentinel_demo_p.set_defaults(func=run_sentinel_demo)
+
+    sentinel_web_p = subparsers.add_parser(
+        "sentinel-web",
+        help="Launch the Sentinel real-time Web GIS surveillance dashboard",
+    )
+    sentinel_web_p.add_argument("--host", default="0.0.0.0", help="Host interface")
+    sentinel_web_p.add_argument("--port", type=int, default=8888, help="Port")
+    sentinel_web_p.set_defaults(func=run_sentinel_web)
 
     args = parser.parse_args()
     args.func(args)

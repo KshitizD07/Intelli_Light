@@ -47,10 +47,15 @@ _W_SPEED     = 0.15
 _DEFAULT_SPEED_LIMIT_MPS = 13.9
 
 
+from sentinel.anomaly.gnn_bridge import GNNTelemetryBridge
+
 class AnomalyScorer:
     """
-    Stateless scorer: given a VehicleTrace, returns a score in [0, 1].
+    Scorer: given a VehicleTrace and optional GNN telemetry, returns a score in [0, 1].
     """
+
+    def __init__(self, gnn_bridge: Optional[GNNTelemetryBridge] = None):
+        self.gnn_bridge = gnn_bridge
 
     def score(self, trace: VehicleTrace) -> float:
         """
@@ -108,6 +113,15 @@ class AnomalyScorer:
         if unique == 0:
             return 0.0
         deviation_ratio = (actual - unique) / max(unique, 1)
+
+        # Cross-reference with GNN congestion telemetry if available
+        if self.gnn_bridge and deviation_ratio > 0:
+            # Check if bypassed direct intersections had heavy queues
+            justification = self.gnn_bridge.calculate_detour_justification(
+                list(set(seq)), deviation_ratio
+            )
+            deviation_ratio = deviation_ratio * (1.0 - justification)
+
         # Scale: a ratio of 1.0 (double the necessary hops) = full score
         return min(1.0, deviation_ratio)
 
@@ -159,9 +173,10 @@ class AnomalyEngine:
         tracker = TrackerManager(..., on_update=engine.evaluate)
     """
 
-    def __init__(self, bus: EventBus):
+    def __init__(self, bus: EventBus, gnn_bridge: Optional[GNNTelemetryBridge] = None):
         self.bus = bus
-        self._scorer = AnomalyScorer()
+        self.gnn_bridge = gnn_bridge
+        self._scorer = AnomalyScorer(gnn_bridge=gnn_bridge)
         self._last_scores: Dict[str, float] = {}
         logger.info("[AnomalyEngine] Initialized")
 

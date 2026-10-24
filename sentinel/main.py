@@ -157,7 +157,30 @@ def main():
         default=False,
         help="Seed the flagged vehicle registry with demo plates",
     )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        default=False,
+        help="Run the turnkey end-to-end Grand Finale demonstration scenario",
+    )
+    parser.add_argument(
+        "--web",
+        action="store_true",
+        default=False,
+        help="Launch the live Web GIS surveillance dashboard server",
+    )
     args = parser.parse_args()
+
+    if args.demo:
+        from sentinel.demo import main as demo_main
+        demo_main()
+        return
+
+    if args.web:
+        from sentinel.server import main as server_main
+        server_main()
+        return
+
     asyncio.run(run(args))
 
 

@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SENTINEL | City-Wide ANPR & Urban Intelligence (Intelli-Light 3.0)</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(15, 23, 42, 0.85);
+      --border: rgba(56, 189, 248, 0.2);
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --cyan: #38bdf8;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --green: #10b981;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Navigation Header */
+    header {
+      background: rgba(11, 19, 38, 0.95);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 1000;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge-live {
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--green);
+      border: 1px solid var(--green);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+
+    .metrics-bar {
+      display: flex;
+      gap: 20px;
+      font-size: 13px;
+    }
+
+    .metric-item span {
+      color: var(--text-muted);
+      margin-right: 6px;
+    }
+
+    .metric-item strong {
+      color: var(--cyan);
+      font-size: 14px;
+    }
+
+    /* Main Layout */
+    .dashboard-container {
+      display: flex;
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #map {
+      flex: 1;
+      height: 100%;
+      background: #020617;
+    }
+
+    /* Floating Side Panel */
+    .side-panel {
+      width: 420px;
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      z-index: 999;
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: rgba(9, 13, 22, 0.6);
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 12px 8px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      color: var(--cyan);
+      border-bottom: 2px solid var(--cyan);
+      background: rgba(56, 189, 248, 0.08);
+    }
+
+    .tab-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Cards & Lists */
+    .card {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .alert-card {
+      border-left: 4px solid var(--red);
+      background: rgba(239, 68, 68, 0.08);
+      margin-bottom: 10px;
+      padding: 12px;
+      border-radius: 4px;
+    }
+
+    .alert-card.warning {
+      border-left-color: var(--amber);
+      background: rgba(245, 158, 11, 0.08);
+    }
+
+    .alert-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .alert-detail {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Form Controls */
+    .input-group {
+      margin-bottom: 12px;
+    }
+
+    .input-group label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+
+    .input-group input, .input-group select {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-danger {
+      background: #dc2626;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
+
+    .btn-cyan {
+      background: #0284c7;
+      color: white;
+      margin-top: 6px;
+    }
+
+    .btn-cyan:hover {
+      background: #0369a1;
+    }
+
+    /* O-D Matrix Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    th, td {
+      padding: 8px 6px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <h2 style="font-size: 18px; font-weight: 800; letter-spacing: 0.5px;">
+        <span style="color: var(--cyan);">SENTINEL</span> | CITY INTELLIGENCE
+      </h2>
+      <span class="badge-live">LIVE TraCI STREAM</span>
+      <span style="font-size: 11px; color: var(--text-muted);">BEL / SIH26127</span>
+    </div>
+
+    <div class="metrics-bar">
+      <div class="metric-item"><span>Active Vehicles:</span><strong id="m-vehicles">0</strong></div>
+      <div class="metric-item"><span>Cameras Active:</span><strong id="m-cameras">0</strong></div>
+      <div class="metric-item"><span>Blacklist Hits:</span><strong id="m-alerts" style="color: var(--red);">0</strong></div>
+      <div class="metric-item"><span>Avg Anomaly:</span><strong id="m-anomaly">0.00</strong></div>
+    </div>
+  </header>
+
+  <div class="dashboard-container">
+    <div id="map"></div>
+
+    <div class="side-panel">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('alerts')">Alerts</button>
+        <button class="tab-btn" onclick="switchTab('intercept')">Intercept</button>
+        <button class="tab-btn" onclick="switchTab('analytics')">O-D Analytics</button>
+        <button class="tab-btn" onclick="switchTab('registry')">Registry</button>
+      </div>
+
+      <!-- Tab: Live Alerts -->
+      <div id="tab-alerts" class="tab-content active">
+        <div class="card-title">Real-Time Threat Feed</div>
+        <div id="alert-list">
+          <div style="color: var(--text-muted); font-size: 12px; text-align: center; padding: 20px;">
+            Awaiting camera detection events...
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Intercept Orchestrator -->
+      <div id="tab-intercept" class="tab-content">
+        <div class="card">
+          <div class="card-title">Adaptive Signal Intervention</div>
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+            Manipulate downstream signal controllers via NTCIP 1202 failsafe to box in suspects using organic traffic buildup.
+          </p>
+
+          <div class="input-group">
+            <label>Target Plate</label>
+            <input type="text" id="int-plate" placeholder="e.g. UP32XY9999" value="UP32XY9999" />
+          </div>
+
+          <div class="input-group">
+            <label>Current Known Junction</label>
+            <input type="text" id="int-junction" placeholder="e.g. J_042" value="J_042" />
+          </div>
+
+          <div class="input-group">
+            <label>Intervention Reason</label>
+            <input type="text" id="int-reason" placeholder="e.g. Stolen vehicle pursuit" value="Stolen vehicle pursuit" />
+          </div>
+
+          <button class="btn btn-danger" onclick="triggerIntercept()">TRIGGER TRAFFIC INTERCEPT</button>
+          <button class="btn btn-cyan" onclick="cancelIntercept()">CANCEL INTERCEPT</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Active Perimeter Overrides</div>
+          <div id="override-status" style="font-size: 12px; color: var(--text-muted);">
+            No active intercept missions.
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: O-D Analytics -->
+      <div id="tab-analytics" class="tab-content">
+        <div class="card">
+          <div class="card-title">Origin-Destination Trips</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Origin</th>
+                <th>Destination</th>
+                <th>Trips</th>
+                <th>Avg Time</th>
+              </tr>
+            </thead>
+            <tbody id="od-table-body">
+              <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Calculating trips...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab: Flagged Registry -->
+      <div id="tab-registry" class="tab-content">
+        <div class="card">
+          <div class="card-title">Register Suspicious Vehicle</div>
+          <div class="input-group">
+            <label>License Plate</label>
+            <input type="text" id="reg-plate" placeholder="UP32AB1234" />
+          </div>
+          <div class="input-group">
+            <label>Reason</label>
+            <input type="text" id="reg-reason" placeholder="Surveillance / Wanted" />
+          </div>
+          <div class="input-group">
+            <label>Authority</label>
+            <input type="text" id="reg-auth" placeholder="Lucknow Police / STF" />
+          </div>
+          <button class="btn btn-cyan" onclick="registerVehicle()">ADD TO WATCHLIST</button>
+        </div>
+
+        <div class="card-title">Watchlist Database</div>
+        <div id="registry-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // -----------------------------------------------------------------------
+    // Map Setup
+    // -----------------------------------------------------------------------
+    const map = L.map('map', { zoomControl: true }).setView([26.8467, 80.9462], 13);
+
+    // Dark Map Tiles
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+      subdomains: 'abcd',
+      maxZoom: 19
+    }).addTo(map);
+
+    let vehicleMarkers = {};
+    let trajectoryPolylines = {};
+    let cameraMarkers = {};
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      
+      event.target.classList.add('active');
+      document.getElementById('tab-' + tabName).classList.add('active');
+    }
+
+    // -----------------------------------------------------------------------
+    // WebSocket Live Ingestion
+    // -----------------------------------------------------------------------
+    let socket;
+    let alertCount = 0;
+
+    function connectWebSocket() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws/live`;
+      
+      socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        console.log("[Sentinel WS] Connected to live telemetery stream");
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleLiveUpdate(data);
+        } catch (e) {
+          console.error("WS Parse error", e);
+        }
+      };
+
+      socket.onclose = () => {
+        console.warn("[Sentinel WS] Disconnected. Reconnecting in 2s...");
+        setTimeout(connectWebSocket, 2000);
+      };
+    }
+
+    function handleLiveUpdate(data) {
+      // 1. Update Metrics
+      if (data.metrics) {
+        document.getElementById('m-vehicles').innerText = data.metrics.active_vehicles || 0;
+        document.getElementById('m-cameras').innerText = data.metrics.active_cameras || 0;
+        document.getElementById('m-anomaly').innerText = (data.metrics.avg_anomaly || 0).toFixed(2);
+      }
+
+      // 2. Plot Camera Markers
+      if (data.cameras && Object.keys(cameraMarkers).length === 0) {
+        Object.entries(data.cameras).forEach(([jid, cam]) => {
+          if (cam.lat && cam.lng) {
+            const m = L.circleMarker([cam.lat, cam.lng], {
+              radius: 4,
+              color: '#38bdf8',
+              fillColor: '#0284c7',
+              fillOpacity: 0.6,
+              weight: 1
+            }).bindTooltip(`Camera: ${jid}`, { direction: 'top' }).addTo(map);
+            cameraMarkers[jid] = m;
+          }
+        });
+      }
+
+      // 3. Update Vehicle Trajectories & Markers
+      if (data.vehicles) {
+        Object.values(data.vehicles).forEach(v => {
+          if (!v.last_sighting || !v.last_sighting.lat) return;
+
+          const lat = v.last_sighting.lat;
+          const lng = v.last_sighting.lng;
+          const isFlagged = v.is_flagged;
+          const anomaly = v.anomaly_score || 0;
+
+          const markerColor = isFlagged ? '#ef4444' : (anomaly > 0.6 ? '#f59e0b' : '#38bdf8');
+
+          if (!vehicleMarkers[v.plate]) {
+            vehicleMarkers[v.plate] = L.circleMarker([lat, lng], {
+              radius: 6,
+              color: markerColor,
+              fillColor: markerColor,
+              fillOpacity: 0.9,
+              weight: 2
+            }).bindPopup(`<b>${v.plate}</b><br/>Anomaly Score: ${anomaly.toFixed(2)}`).addTo(map);
+          } else {
+            vehicleMarkers[v.plate].setLatLng([lat, lng]);
+            vehicleMarkers[v.plate].setStyle({ color: markerColor, fillColor: markerColor });
+          }
+
+          // Trajectory lines
+          if (v.geometry && v.geometry.length > 1) {
+            const latlngs = v.geometry.map(coord => [coord[1], coord[0]]);
+            if (!trajectoryPolylines[v.plate]) {
+              trajectoryPolylines[v.plate] = L.polyline(latlngs, {
+                color: markerColor,
+                weight: 3,
+                opacity: 0.7
+              }).addTo(map);
+            } else {
+              trajectoryPolylines[v.plate].setLatLngs(latlngs);
+              trajectoryPolylines[v.plate].setStyle({ color: markerColor });
+            }
+          }
+        });
+      }
+
+      // 4. Alerts
+      if (data.alert) {
+        alertCount++;
+        document.getElementById('m-alerts').innerText = alertCount;
+        renderAlert(data.alert);
+      }
+    }
+
+    function renderAlert(alert) {
+      const list = document.getElementById('alert-list');
+      if (list.innerText.includes('Awaiting camera')) list.innerHTML = '';
+
+      const isBlacklist = alert.type === 'alert';
+      const card = document.createElement('div');
+      card.className = `alert-card ${isBlacklist ? '' : 'warning'}`;
+      card.innerHTML = `
+        <div class="alert-header">
+          <span style="color: ${isBlacklist ? '#ef4444' : '#f59e0b'}">
+            ${isBlacklist ? 'BLACKLIST HIT' : 'ANOMALY DETECTED'}
+          </span>
+          <span>${alert.plate}</span>
+        </div>
+        <div class="alert-detail">
+          Junction: <b>${alert.junction_id}</b> | Time: ${new Date(alert.timestamp * 1000).toLocaleTimeString()}
+        </div>
+        <div class="alert-detail" style="margin-top: 4px;">
+          ${alert.extra?.reason || alert.extra?.detail || ''}
+        </div>
+      `;
+      list.prepend(card);
+    }
+
+    // -----------------------------------------------------------------------
+    // REST API Actions
+    // -----------------------------------------------------------------------
+    async function triggerIntercept() {
+      const plate = document.getElementById('int-plate').value.trim();
+      const junction = document.getElementById('int-junction').value.trim();
+      const reason = document.getElementById('int-reason').value.trim();
+
+      const res = await fetch('/api/intercept/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plate, current_junction: junction, authorized_by: 'OPERATOR_KSHITIZ', reason })
+      });
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById('override-status').innerHTML = `
+          <strong style="color: #ef4444;">ACTIVE INTERCEPT</strong><br/>
+          Target: ${data.plate}<br/>
+          Perimeter Locked: ${data.overridden_junctions.join(', ')}<br/>
+          TTL: ${data.ttl_seconds}s
+        `;
+      } else {
+        alert('Intercept Failed: ' + data.error);
+      }
+    }
+
+    async function cancelIntercept() {
+      const plate = document.getElementById('int-plate').value.trim();
+      await fetch('/api/intercept/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plate, cancelled_by: 'OPERATOR_KSHITIZ' })
+      });
+      document.getElementById('override-status').innerText = 'No active intercept missions.';
+    }
+
+    async function registerVehicle() {
+      const plate = document.getElementById('reg-plate').value.trim();
+      const reason = document.getElementById('reg-reason').value.trim();
+      const authority = document.getElementById('reg-auth').value.trim();
+
+      await fetch('/api/flagged', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plate, flag_reason: reason, authority, intercept_authorized: true })
+      });
+      loadRegistry();
+    }
+
+    async function loadRegistry() {
+      const res = await fetch('/api/flagged');
+      const data = await res.json();
+      const list = document.getElementById('registry-list');
+      list.innerHTML = data.map(v => `
+        <div style="font-size: 12px; padding: 8px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;">
+          <span><strong>${v.plate}</strong> (${v.flag_reason})</span>
+          <span style="color: ${v.intercept_authorized ? '#10b981' : '#f59e0b'}">
+            ${v.intercept_authorized ? 'AUTH' : 'MONITOR'}
+          </span>
+        </div>
+      `).join('');
+    }
+
+    async function loadODMatrix() {
+      const res = await fetch('/api/od-matrix');
+      const data = await res.json();
+      const tbody = document.getElementById('od-table-body');
+      if (data.length === 0) return;
+      tbody.innerHTML = data.slice(0, 8).map(row => `
+        <tr>
+          <td><strong>${row.origin_junction}</strong></td>
+          <td><strong>${row.destination_junction}</strong></td>
+          <td>${row.trip_count}</td>
+          <td>${row.avg_duration_s.toFixed(0)}s</td>
+        </tr>
+      `).join('');
+    }
+
+    // Initialize
+    connectWebSocket();
+    loadRegistry();
+    setInterval(loadODMatrix, 5000);
+  </script>
+</body>
+</html>

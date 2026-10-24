@@ -46,6 +46,15 @@ To bridge the gap between AI research and physical road deployment, Intelli-Ligh
 * **Interactive 2D Monitoring Dashboard**: View live KPI meters, queue states, active failsafe events, and manually override intersection signal phases.
 * **3D React + Three.js Graph Dashboard (`webapp/3d-dashboard/`)**: Interactive 3D visualization rendering GNN graph nodes, dynamic traffic edges, signal states, and particle effect flows.
 
+### 🛰️ 7. Sentinel: City-Wide ANPR Trajectory Tracking & Traffic Intercept (`sentinel/`)
+* **SIH26127 / Bharat Electronics Limited (BEL)**: Autonomous urban surveillance and traffic intelligence layer operating alongside Intelli-Light 3.0.
+* **Multi-Frame Consensus OCR Voter (`sentinel/alpr/voter.py`)**: Denoises optical plate reads across rolling video frames with RapidFuzz substitution tolerance (`0/D`, `1/I`, `8/B`).
+* **Spatial-Temporal Trajectory Reconstruction (`sentinel/tracker/`)**: Reconstructs continuous, road-snapped vehicle paths (`road_snapper.py`) with kinematic plausibility checks to detect impossible hops or cloned plates.
+* **GNN Congestion-Aware Anomaly Engine (`sentinel/anomaly/`)**: Cross-references route deviations with Intelli-Light's live queue lengths to distinguish traffic avoidance from suspicious evasion.
+* **Tactical Traffic Intercept Orchestrator (`sentinel/intercept/`)**: Dynamically manipulates downstream signals via NTCIP failsafe watchdog to box in suspects using organic traffic buildup, with emergency vehicle priority and SHA-256 hash-chained audit logging.
+* **Turnkey Hackathon Demo**: Execute `python main.py sentinel-demo` or start the live GIS map via `python main.py sentinel-web`.
+* **Architecture Whitepaper**: See [`docs/SENTINEL_SIH26127_ARCHITECTURE.md`](docs/SENTINEL_SIH26127_ARCHITECTURE.md).
+
 ---
 
 ## 🏗️ System Architecture

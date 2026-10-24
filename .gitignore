@@ -89,3 +89,10 @@ node_modules/
 
 
 
+
+# Sentinel Databases
+sentinel/data/*.db
+sentinel/data/*.db-journal
+sentinel/data/*.jsonl
+sentinel/data/*.wal
+sentinel/data/*.shm
