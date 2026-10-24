@@ -398,6 +398,11 @@
       white-space: pre-wrap;
       word-break: break-all;
     }
+
+    /* Tactical Dark Filter for OpenStreetMap Tiles (No API Key Required) */
+    .tactical-dark-tiles {
+      filter: invert(100%) hue-rotate(180deg) brightness(90%) contrast(90%);
+    }
   </style>
 </head>
 <body>
@@ -571,15 +576,28 @@
 
   <script>
     // -----------------------------------------------------------------------
-    // Geospatial Map Initialization
+    // Geospatial Map Initialization (No API Key Required)
     // -----------------------------------------------------------------------
     const map = L.map('map', { zoomControl: true }).setView([26.8467, 80.9462], 13);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-      subdomains: 'abcd',
-      maxZoom: 19
+    // Primary: OpenStreetMap with Tactical Dark Inversion Filter
+    const tacticalDarkLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+      className: 'tactical-dark-tiles'
     }).addTo(map);
+
+    // Standard OpenStreetMap (unfiltered)
+    const osmStandardLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19
+    });
+
+    // Layer switch control
+    L.control.layers({
+      "Tactical Dark (HUD)": tacticalDarkLayer,
+      "Standard Map": osmStandardLayer
+    }, null, { position: 'topleft' }).addTo(map);
 
     let vehicleMarkers = {};
     let trajectoryPolylines = {};
