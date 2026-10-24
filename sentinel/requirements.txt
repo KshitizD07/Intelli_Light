@@ -1,0 +1,14 @@
+# Sentinel additional dependencies
+# Install into the Intelli-Light venv:
+#   pip install -r sentinel/requirements.txt
+
+# Fuzzy string matching for OCR denoising
+rapidfuzz>=3.0.0
+
+# --- Optional: only needed for video/real-camera mode ---
+# YOLOv8 plate detection
+# ultralytics>=8.0.0
+
+# Indian plate OCR
+# paddleocr>=2.7.0
+# paddlepaddle>=2.6.0
