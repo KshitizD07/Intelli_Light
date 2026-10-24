@@ -27,6 +27,8 @@ from sentinel.registry import FlaggedVehicleRegistry
 from sentinel.ingestion.sumo_injector import CameraGrid
 from sentinel.anomaly.gnn_bridge import GNNTelemetryBridge
 from sentinel.intercept.orchestrator import InterceptOrchestrator
+from sentinel.tracker.road_snapper import RoadSnapper
+from sentinel.config import SUMO_NET_FILE
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,7 @@ class TrafficSimulationDaemon:
         camera_grid: CameraGrid,
         gnn_bridge: Optional[GNNTelemetryBridge] = None,
         orchestrator: Optional[InterceptOrchestrator] = None,
+        road_snapper: Optional[RoadSnapper] = None,
         tick_interval_s: float = 1.0,
     ):
         self.bus = bus
@@ -65,14 +68,52 @@ class TrafficSimulationDaemon:
         self.camera_grid = camera_grid
         self.gnn_bridge = gnn_bridge
         self.orchestrator = orchestrator
+        self.road_snapper = road_snapper or RoadSnapper(SUMO_NET_FILE)
         self.tick_interval_s = tick_interval_s
 
         self.vehicles: Dict[str, SimulatedVehicle] = {}
         self._camera_junctions = list(camera_grid.cameras.keys())
         self._running = False
         self._sim_time = 0.0
+        self._path_cache: Dict[Tuple[str, str], Tuple[List[Tuple[float, float]], List[float], float]] = {}
 
         self._init_fleet()
+
+    def _get_path_info(self, from_node: str, to_node: str) -> Tuple[List[Tuple[float, float]], List[float], float]:
+        """
+        Returns (points, cumulative_distances_m, total_distance_m) along the road network.
+        Points are [(lng, lat), ...].
+        """
+        cache_key = (from_node, to_node)
+        if cache_key in self._path_cache:
+            return self._path_cache[cache_key]
+
+        coords = self.road_snapper.get_route_geometry([from_node, to_node])
+        if not coords or len(coords) < 2:
+            cam_curr = self.camera_grid.camera_info(from_node) or {}
+            cam_next = self.camera_grid.camera_info(to_node) or {}
+            c1 = (cam_curr.get("lng", 80.95), cam_curr.get("lat", 26.85))
+            c2 = (cam_next.get("lng", 80.95), cam_next.get("lat", 26.85))
+            coords = [c1, c2]
+
+        cum_dists = [0.0]
+        total = 0.0
+        for i in range(len(coords) - 1):
+            lng1, lat1 = coords[i]
+            lng2, lat2 = coords[i + 1]
+            dx = (lng2 - lng1) * 99300.0  # meters per deg lon at ~26.85 N
+            dy = (lat2 - lat1) * 110800.0 # meters per deg lat
+            seg_len = math.hypot(dx, dy)
+            total += max(0.5, seg_len)
+            cum_dists.append(total)
+
+        if total <= 0.0:
+            total = 100.0
+            cum_dists[-1] = total
+
+        res = (coords, cum_dists, total)
+        self._path_cache[cache_key] = res
+        return res
 
     def _init_fleet(self):
         """Spawns an authentic mix of normal commuters and flagged surveillance targets."""
@@ -192,24 +233,32 @@ class TrafficSimulationDaemon:
                     v.is_halted = False
                     v.halt_reason = ""
 
-            # 2. Advance movement
-            cam_curr = self.camera_grid.camera_info(current_node) or {}
-            cam_next = self.camera_grid.camera_info(next_node) or {}
-
-            # Approximate physical distance in metres
-            lat1, lng1 = cam_curr.get("lat", 26.85), cam_curr.get("lng", 80.95)
-            lat2, lng2 = cam_next.get("lat", 26.85), cam_next.get("lng", 80.95)
-
-            # Haversine distance
-            dist_m = max(100.0, math.hypot(lat2 - lat1, lng2 - lng1) * 111_000)
+            # 2. Advance movement along physical road polyline
+            coords, cum_dists, dist_m = self._get_path_info(current_node, next_node)
             step_distance = v.speed_mps * self.tick_interval_s
             progress_delta = step_distance / dist_m
 
             v.progress += progress_delta
 
-            # Interpolate position
-            v.lat = lat1 + (lat2 - lat1) * min(1.0, v.progress)
-            v.lng = lng1 + (lng2 - lng1) * min(1.0, v.progress)
+            # Interpolate position along physical street curves
+            clamped_progress = min(1.0, max(0.0, v.progress))
+            target_dist = clamped_progress * dist_m
+
+            seg_idx = 0
+            for i in range(len(cum_dists) - 1):
+                if cum_dists[i] <= target_dist <= cum_dists[i + 1]:
+                    seg_idx = i
+                    break
+                if target_dist > cum_dists[i + 1]:
+                    seg_idx = i
+
+            p1 = coords[seg_idx]
+            p2 = coords[min(seg_idx + 1, len(coords) - 1)]
+            seg_len = cum_dists[min(seg_idx + 1, len(cum_dists) - 1)] - cum_dists[seg_idx]
+            seg_ratio = (target_dist - cum_dists[seg_idx]) / seg_len if seg_len > 1e-4 else 0.0
+
+            v.lng = round(p1[0] + (p2[0] - p1[0]) * seg_ratio, 6)
+            v.lat = round(p1[1] + (p2[1] - p1[1]) * seg_ratio, 6)
 
             # 3. Check junction arrival
             if v.progress >= 1.0:

@@ -60,6 +60,7 @@ traffic_daemon = TrafficSimulationDaemon(
     camera_grid=camera_grid,
     gnn_bridge=gnn_bridge,
     orchestrator=intercept_orchestrator,
+    road_snapper=road_snapper,
     tick_interval_s=1.0,
 )
 

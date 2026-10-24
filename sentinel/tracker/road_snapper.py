@@ -117,12 +117,40 @@ class RoadSnapper:
                     except Exception:
                         pass
             else:
-                # Fallback: node to node
-                x1, y1 = from_node.getCoord()
-                x2, y2 = to_node.getCoord()
-                lng1, lat1 = self._net.convertXY2LonLat(x1, y1)
-                lng2, lat2 = self._net.convertXY2LonLat(x2, y2)
-                coords = [(round(lng1, 6), round(lat1, 6)), (round(lng2, 6), round(lat2, 6))]
+                # Multi-hop shortest path via road network
+                best_path = None
+                best_cost = float("inf")
+                for e1 in from_node.getOutgoing():
+                    for e2 in to_node.getIncoming():
+                        res = self._net.getShortestPath(e1, e2)
+                        if res and res[0] and res[1] < best_cost:
+                            best_path, best_cost = res[0], res[1]
+
+                if not best_path:
+                    # Retry with ignoreDirection=True if one-way mismatch
+                    for e1 in from_node.getOutgoing():
+                        for e2 in to_node.getIncoming():
+                            res = self._net.getShortestPath(e1, e2, ignoreDirection=True)
+                            if res and res[0] and res[1] < best_cost:
+                                best_path, best_cost = res[0], res[1]
+
+                if best_path:
+                    for edge in best_path:
+                        for x, y in edge.getShape():
+                            try:
+                                lng, lat = self._net.convertXY2LonLat(x, y)
+                                pt = (round(lng, 6), round(lat, 6))
+                                if not coords or coords[-1] != pt:
+                                    coords.append(pt)
+                            except Exception:
+                                pass
+                else:
+                    # Fallback: node to node
+                    x1, y1 = from_node.getCoord()
+                    x2, y2 = to_node.getCoord()
+                    lng1, lat1 = self._net.convertXY2LonLat(x1, y1)
+                    lng2, lat2 = self._net.convertXY2LonLat(x2, y2)
+                    coords = [(round(lng1, 6), round(lat1, 6)), (round(lng2, 6), round(lat2, 6))]
 
             self._cache[cache_key] = coords
             return coords
