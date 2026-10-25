@@ -63,7 +63,7 @@ parks = [
 
 districts = [
     ('hazratganj_cbd', 'landuse.commercial', '220,224,230,160', '-7', [
-        (5900, 7900), (7100, 7850), (7050, 6800), (5850, 6850)
+        (5200, 6800), (5800, 6800), (5800, 5800), (5200, 5800)
     ]),
     ('gomti_nagar_extension', 'landuse.residential', '228,230,235,150', '-7', [
         (8800, 7100), (11200, 6900), (11000, 4800), (8600, 5100)
@@ -76,28 +76,38 @@ districts = [
     ])
 ]
 
-# Building clusters around the arterial junction cluster_11823984553
-# Intersection is around (8500, 5700) - (8800, 6000)
+# Building clusters around the ACTIVE arterial junction cluster_11823984553 (5500, 6648)
 buildings = []
-bx, by = 8600, 6050
-for row in range(5):
-    for col in range(6):
-        cx = bx + col * 45
-        cy = by + row * 40
-        b_pts = [(cx, cy), (cx + 32, cy), (cx + 32, cy + 28), (cx, cy + 28)]
-        buildings.append((f'bldg_n_{row}_{col}', 'building', '210,215,225,240', '-3', b_pts))
 
-# Buildings south of intersection
-bx2, by2 = 8600, 5450
-for row in range(4):
-    for col in range(6):
-        cx = bx2 + col * 45
-        cy = by2 + row * 38
-        b_pts = [(cx, cy), (cx + 34, cy), (cx + 34, cy + 26), (cx, cy + 26)]
-        buildings.append((f'bldg_s_{row}_{col}', 'building', '215,220,228,240', '-3', b_pts))
+# Buildings East of corridor: X: 5580-5780, Y: 6250-6600
+bx_east, by_east = 5580, 6250
+for row in range(6):
+    for col in range(4):
+        cx = bx_east + col * 48
+        cy = by_east + row * 55
+        b_pts = [(cx, cy), (cx + 36, cy), (cx + 36, cy + 38), (cx, cy + 38)]
+        buildings.append((f'bldg_east_{row}_{col}', 'building', '215,220,228,240', '-3', b_pts))
 
-# Police HQ building & campus
-police_campus = [(7050, 7350), (7250, 7350), (7250, 7200), (7050, 7200)]
+# Buildings West of corridor: X: 5280-5460, Y: 6250-6600
+bx_west, by_west = 5280, 6250
+for row in range(6):
+    for col in range(3):
+        cx = bx_west + col * 55
+        cy = by_west + row * 55
+        b_pts = [(cx, cy), (cx + 38, cy), (cx + 38, cy + 38), (cx, cy + 38)]
+        buildings.append((f'bldg_west_{row}_{col}', 'building', '210,215,225,240', '-3', b_pts))
+
+# Buildings North of junction: X: 5400-5620, Y: 6720-6880
+bx_north, by_north = 5400, 6720
+for row in range(3):
+    for col in range(5):
+        cx = bx_north + col * 46
+        cy = by_north + row * 50
+        b_pts = [(cx, cy), (cx + 34, cy), (cx + 34, cy + 34), (cx, cy + 34)]
+        buildings.append((f'bldg_north_{row}_{col}', 'building', '220,222,230,240', '-3', b_pts))
+
+# Police HQ building & campus (near corridor)
+police_campus = [(5620, 6100), (5780, 6100), (5780, 5950), (5620, 5950)]
 buildings.append(('police_hq_campus', 'amenity.police', '60,85,140,255', '-2', police_campus))
 
 lines = ['<additional>']
@@ -116,12 +126,11 @@ for did, dtype, col, layer, pts in districts:
 for bid, btype, col, layer, pts in buildings:
     lines.append(f'    <poly id="{bid}" type="{btype}" color="{col}" fill="1" layer="{layer}" shape="{pts_str(pts)}"/>')
 
-# POIs
+# POIs (Located right on the active corridor and junction!)
 pois = [
-    ('POI_POLICE_ICCC_HQ', 'Police Command HQ', '30,80,210,255', '200', 7150.0, 7275.0, 14.0, 14.0),
-    ('POI_ANPR_CAM_01', 'ANPR Camera #01 (Hazratganj)', '255,200,0,255', '180', 6800.0, 7200.0, 10.0, 10.0),
-    ('POI_ANPR_CAM_02', 'ANPR Camera #02 (Gomti Barrage)', '255,200,0,255', '180', 8700.0, 8300.0, 10.0, 10.0),
-    ('POI_ANPR_CAM_03', 'ANPR Camera #03 (Shaheed Path)', '255,200,0,255', '180', 8650.0, 5800.0, 10.0, 10.0),
+    ('POI_POLICE_ICCC_HQ', 'Police Command HQ', '30,80,210,255', '200', 5700.0, 6025.0, 16.0, 16.0),
+    ('POI_ANPR_CAM_01', 'ANPR Camera #01 (Arterial Checkpoint Alpha)', '255,200,0,255', '180', 5550.0, 6500.0, 12.0, 12.0),
+    ('POI_ANPR_CAM_02', 'ANPR Camera #02 (Junction Perimeter Beta)', '255,200,0,255', '180', 5500.0, 6650.0, 12.0, 12.0),
 ]
 for p_id, p_type, col, layer, x, y, w, h in pois:
     lines.append(f'    <poi id="{p_id}" type="{p_type}" color="{col}" layer="{layer}" x="{x}" y="{y}" width="{w}" height="{h}"/>')

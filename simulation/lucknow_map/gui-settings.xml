@@ -61,6 +61,6 @@
         <pois poi_minSize="1.00" poi_exaggeration="1.50" poi_constantSize="0" poiName_show="0" poiType_show="0"/>
     </scheme>
 
-    <viewport zoom="2200.0" x="8650.0" y="5800.0" angle="0.0"/>
+    <viewport zoom="1200.0" x="5580.0" y="6400.0" angle="0.0"/>
     <delay value="160.0"/>
 </viewsettings>
