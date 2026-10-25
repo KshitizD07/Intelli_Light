@@ -27,6 +27,7 @@ from sentinel.registry import FlaggedVehicleRegistry
 from sentinel.ingestion.sumo_injector import CameraGrid
 from sentinel.anomaly.gnn_bridge import GNNTelemetryBridge
 from sentinel.intercept.orchestrator import InterceptOrchestrator
+from sentinel.intercept.tactical_bridge import TacticalGuidanceBridge
 from sentinel.tracker.road_snapper import RoadSnapper
 from sentinel.config import SUMO_NET_FILE
 
@@ -39,12 +40,14 @@ class SimulatedVehicle:
     route: List[str]            # list of junction IDs
     current_index: int = 0
     speed_mps: float = 12.0     # ~43 km/h
+    base_speed_mps: float = 12.0 # Cruise speed
     progress: float = 0.0       # 0.0 to 1.0 between current and next node
     lat: float = 0.0
     lng: float = 0.0
     is_flagged: bool = False
     is_halted: bool = False
     halt_reason: str = ""
+    guidance_status: str = "NORMAL"
     anomaly_pattern: Optional[str] = None  # 'detour' | 'loop' | None
 
 
@@ -68,6 +71,7 @@ class TrafficSimulationDaemon:
         self.camera_grid = camera_grid
         self.gnn_bridge = gnn_bridge
         self.orchestrator = orchestrator
+        self.tactical_bridge = TacticalGuidanceBridge(orchestrator=orchestrator) if orchestrator else None
         self.road_snapper = road_snapper or RoadSnapper(SUMO_NET_FILE)
         self.tick_interval_s = tick_interval_s
 
@@ -186,6 +190,7 @@ class TrafficSimulationDaemon:
             route=route,
             current_index=0,
             speed_mps=speed,
+            base_speed_mps=speed,
             lat=start_cam.get("lat", 26.85),
             lng=start_cam.get("lng", 80.95),
             is_flagged=is_flagged,
@@ -242,31 +247,63 @@ class TrafficSimulationDaemon:
             next_index = (v.current_index + 1) % len(v.route)
             next_node = v.route[next_index]
 
-            # 1. Closed-Loop Reaction: Check if next junction is locked by an intercept
-            if (
-                self.orchestrator
-                and next_node in active_overrides
-                and active_overrides[next_node].get("target_plate") == plate
-            ):
-                if v.progress >= 0.85 and not v.is_halted:
+            # 1. Closed-Loop Tactical Reaction & Kinematic Deceleration
+            if self.tactical_bridge:
+                target_v, guidance_status = self.tactical_bridge.get_kinematic_target_speed(
+                    plate=v.plate,
+                    next_junction=next_node,
+                    progress=v.progress,
+                    base_speed_mps=v.base_speed_mps,
+                )
+                v.guidance_status = guidance_status
+
+                # Physical deceleration (brake rate ~2.5 m/s^2)
+                if v.speed_mps > target_v:
+                    brake_step = 2.5 * self.tick_interval_s
+                    v.speed_mps = max(target_v, round(v.speed_mps - brake_step, 2))
+                elif v.speed_mps < target_v:
+                    accel_step = 1.8 * self.tick_interval_s
+                    v.speed_mps = min(target_v, round(v.speed_mps + accel_step, 2))
+
+                # Check queue containment halt
+                is_target = (
+                    next_node in active_overrides
+                    and active_overrides[next_node].get("target_plate") == plate
+                )
+                if is_target and v.progress >= 0.85:
                     v.is_halted = True
+                    v.speed_mps = 0.0
                     v.halt_reason = f"HALTED BY RED-WALL INTERCEPT AT {next_node}"
-                    logger.warning(
-                        f"[TrafficDaemon] TARGET VEHICLE {plate} TRAPPED & HALTED at {next_node}"
-                    )
-                if v.is_halted:
-                    continue  # Frozen in traffic
+                else:
+                    if v.is_halted and not is_target:
+                        v.is_halted = False
+                        v.halt_reason = ""
             else:
-                if v.is_halted:
-                    v.is_halted = False
-                    v.halt_reason = ""
+                if (
+                    self.orchestrator
+                    and next_node in active_overrides
+                    and active_overrides[next_node].get("target_plate") == plate
+                ):
+                    if v.progress >= 0.85 and not v.is_halted:
+                        v.is_halted = True
+                        v.speed_mps = 0.0
+                        v.halt_reason = f"HALTED BY RED-WALL INTERCEPT AT {next_node}"
+                    if v.is_halted:
+                        v.speed_mps = 0.0
+                else:
+                    if v.is_halted:
+                        v.is_halted = False
+                        v.halt_reason = ""
 
             # 2. Advance movement along physical road polyline
             coords, cum_dists, dist_m = self._get_path_info(current_node, next_node)
-            step_distance = v.speed_mps * self.tick_interval_s
-            progress_delta = step_distance / dist_m
-
-            v.progress += progress_delta
+            if v.is_halted or v.speed_mps <= 0.0:
+                step_distance = 0.0
+                progress_delta = 0.0
+            else:
+                step_distance = v.speed_mps * self.tick_interval_s
+                progress_delta = step_distance / dist_m
+                v.progress += progress_delta
 
             # Interpolate position along physical street curves
             clamped_progress = min(1.0, max(0.0, v.progress))
@@ -360,6 +397,7 @@ class TrafficSimulationDaemon:
                 "is_flagged": v.is_flagged,
                 "is_halted": v.is_halted,
                 "halt_reason": v.halt_reason,
+                "guidance_status": v.guidance_status,
                 "current_junction": v.route[v.current_index],
             }
             for v in self.vehicles.values()

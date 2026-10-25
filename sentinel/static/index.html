@@ -485,9 +485,9 @@
       <!-- Tab: Tactical Intercept -->
       <div id="tab-intercept" class="tab-content">
         <div class="card">
-          <div class="card-title">Traffic Signal Manipulation</div>
+          <div class="card-title">Adaptive Signal Intercept</div>
           <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px; line-height: 1.4;">
-            Execute downstream NTCIP signal overrides to form a controlled red-wall perimeter, trapping suspect vehicles in natural congestion.
+            Instructs Intelli-Light to execute progressive green-metering and tactical choke-holds, inducing controlled civilian queues ahead to slow and box in the suspect while preserving pedestrian and emergency safety bounds.
           </p>
 
           <div class="input-group">
@@ -495,8 +495,12 @@
             <input type="text" id="int-plate" value="UP32XY9999" />
           </div>
 
+          <button type="button" class="btn" style="background: rgba(56, 189, 248, 0.12); color: var(--cyan); border: 1px solid rgba(56, 189, 248, 0.4); margin-bottom: 8px; font-size: 10px;" onclick="autoLocateTarget()">
+            &#8982; LOCK LIVE LOCATION OF SUSPECT
+          </button>
+
           <div class="input-group">
-            <label>Current Known Location</label>
+            <label>Current Target Intersection</label>
             <input type="text" id="int-junction" value="cluster_2229834379_2229834384_2234594449" />
           </div>
 
@@ -505,12 +509,12 @@
             <input type="text" id="int-reason" value="Stolen vehicle pursuit" />
           </div>
 
-          <button class="btn btn-danger" onclick="triggerIntercept()">TRIGGER RED-WALL INTERCEPT</button>
+          <button class="btn btn-danger" onclick="triggerIntercept()">AUTHORIZE & DEPLOY RED-WALL</button>
           <button class="btn btn-cyan" onclick="cancelIntercept()">CANCEL INTERCEPT DIRECTIVE</button>
         </div>
 
         <div class="card">
-          <div class="card-title">Perimeter Status</div>
+          <div class="card-title">Tactical Regulation Status</div>
           <div id="override-status" style="font-size: 11px; color: var(--text-muted);">
             No active perimeter overrides.
           </div>
@@ -755,10 +759,12 @@
           const isFlagged = v.is_flagged;
           const isHalted = v.is_halted;
           const markerColor = isHalted ? '#dc2626' : (isFlagged ? '#ef4444' : '#38bdf8');
+          const kmh = Math.round(v.speed_mps * 3.6);
+          const guidance = v.guidance_status || (isHalted ? 'HALTED' : 'FLOWING');
 
-          let popupContent = `<b>${v.plate}</b><br/>Speed: ${v.speed_mps} m/s`;
+          let popupContent = `<b>${v.plate}</b><br/>Speed: <strong>${v.speed_mps} m/s</strong> (${kmh} km/h)<br/>Status: <span style="color: ${isHalted ? '#ef4444' : (guidance.includes('METER') || guidance.includes('BRAK') ? '#f59e0b' : '#38bdf8')}">${guidance}</span>`;
           if (isHalted) {
-            popupContent += `<br/><strong style="color: #ef4444;">TRAPPED BY RED-WALL</strong>`;
+            popupContent += `<br/><strong style="color: #ef4444;">TRAPPED BY CONTROLLED QUEUE</strong>`;
           }
 
           if (!vehicleMarkers[v.plate]) {
@@ -803,35 +809,61 @@
         const jids = Object.keys(overrides);
         if (jids.length > 0) {
           const first = Object.values(overrides)[0];
+          const directiveInfo = data.directives && Object.values(data.directives)[0];
+          const stageBadge = directiveInfo ? `<span style="color: #f59e0b; font-weight: 800;">[STAGE: ${directiveInfo.stage}]</span><br/>` : '';
+
           document.getElementById('override-status').innerHTML = `
             <strong style="color: #ef4444;">RED-WALL ACTIVE:</strong> ${first.mission_id}<br/>
+            ${stageBadge}
             Target: <strong>${first.target_plate}</strong><br/>
-            Locked Nodes: ${jids.length} intersections<br/>
+            Locked Nodes: <strong>${jids.length} intersections</strong><br/>
+            Guidance: <em>Downstream Metering & Choke Active</em><br/>
+            Failsafe Limits: <em>Pedestrian Safe (15s), Max Red (120s)</em><br/>
             TTL Remaining: <strong>${first.remaining_ttl}s</strong>
           `;
 
+          // Clear prior perimeter elements
+          if (window.perimeterLayers) {
+            window.perimeterLayers.forEach(l => map.removeLayer(l));
+          }
+          window.perimeterLayers = [];
+
+          // Draw distinct glowing choke-point circles at each locked camera junction
+          jids.forEach(jid => {
+            const cam = cameraCoordinates[jid];
+            if (cam && cam.lat && cam.lng) {
+              const ring = L.circle([cam.lat, cam.lng], {
+                radius: 120,
+                color: '#ef4444',
+                fillColor: '#ef4444',
+                fillOpacity: 0.25,
+                weight: 2,
+                dashArray: '4, 4'
+              }).bindTooltip(`<b>RED-WALL CHOKE POINT</b><br/>${jid.slice(0, 20)}`, { direction: 'top' }).addTo(map);
+              window.perimeterLayers.push(ring);
+            }
+          });
+
+          // Draw polygon if 3+ points
           const points = jids
             .filter(jid => cameraCoordinates[jid])
             .map(jid => [cameraCoordinates[jid].lat, cameraCoordinates[jid].lng]);
 
           if (points.length >= 3) {
-            if (!perimeterPolygon) {
-              perimeterPolygon = L.polygon(points, {
-                color: '#ef4444',
-                fillColor: '#ef4444',
-                fillOpacity: 0.18,
-                weight: 2,
-                dashArray: '5, 5'
-              }).addTo(map);
-            } else {
-              perimeterPolygon.setLatLngs(points);
-            }
+            const poly = L.polygon(points, {
+              color: '#ef4444',
+              fillColor: '#ef4444',
+              fillOpacity: 0.12,
+              weight: 2,
+              dashArray: '6, 6'
+            }).addTo(map);
+            window.perimeterLayers.push(poly);
           }
         } else {
           document.getElementById('override-status').innerText = 'No active perimeter overrides.';
-          if (perimeterPolygon) {
-            map.removeLayer(perimeterPolygon);
-            perimeterPolygon = null;
+          if (window.perimeterLayers) {
+            window.perimeterLayers.forEach(l => map.removeLayer(l));
+            window.perimeterLayers = [];
           }
         }
       }
@@ -903,10 +935,44 @@
     // -----------------------------------------------------------------------
     // REST API Actions
     // -----------------------------------------------------------------------
+    async function autoLocateTarget() {
+      const plate = document.getElementById('int-plate').value.trim();
+      try {
+        const res = await fetch('/api/fleet');
+        const fleet = await res.json();
+        const target = fleet.find(v => v.plate === plate);
+        if (target) {
+          document.getElementById('int-junction').value = target.current_junction;
+          if (target.lat && target.lng) {
+            map.setView([target.lat, target.lng], 16);
+          }
+        } else {
+          alert('Vehicle ' + plate + ' is currently not active on the road network.');
+        }
+      } catch (e) {
+        console.error('Failed to locate target', e);
+      }
+    }
+
     async function triggerIntercept() {
       const plate = document.getElementById('int-plate').value.trim();
-      const junction = document.getElementById('int-junction').value.trim();
+      let junction = document.getElementById('int-junction').value.trim();
       const reason = document.getElementById('int-reason').value.trim();
+
+      // Auto-locate live junction if default or blank
+      if (!junction) {
+        try {
+          const fleetRes = await fetch('/api/fleet');
+          const fleet = await fleetRes.json();
+          const target = fleet.find(v => v.plate === plate);
+          if (target && target.current_junction) {
+            junction = target.current_junction;
+            document.getElementById('int-junction').value = junction;
+          }
+        } catch (e) {
+          console.warn("Could not auto-fetch junction", e);
+        }
+      }
 
       const res = await fetch('/api/intercept/trigger', {
         method: 'POST',
@@ -916,6 +982,11 @@
       const data = await res.json();
       if (!data.success) {
         alert('Intercept Directive Failed: ' + data.error);
+      } else {
+        // Center view on target vehicle
+        if (vehicleMarkers[plate]) {
+          map.setView(vehicleMarkers[plate].getLatLng(), 16);
+        }
       }
     }
 

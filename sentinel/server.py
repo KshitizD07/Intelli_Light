@@ -38,6 +38,7 @@ from sentinel.tracker.trajectory_store import TrajectoryStore
 from sentinel.anomaly.gnn_bridge import GNNTelemetryBridge
 from sentinel.anomaly.scorer import AnomalyEngine
 from sentinel.intercept.orchestrator import InterceptOrchestrator
+from sentinel.intercept.tactical_bridge import TacticalGuidanceBridge
 from sentinel.ingestion.traffic_daemon import TrafficSimulationDaemon
 
 logger = logging.getLogger("sentinel.server")
@@ -53,6 +54,7 @@ trajectory_store = TrajectoryStore()
 gnn_bridge = GNNTelemetryBridge()
 anomaly_engine = AnomalyEngine(bus, gnn_bridge=gnn_bridge)
 intercept_orchestrator = InterceptOrchestrator(registry)
+tactical_bridge = TacticalGuidanceBridge(orchestrator=intercept_orchestrator)
 
 traffic_daemon = TrafficSimulationDaemon(
     bus=bus,
@@ -154,6 +156,15 @@ async def fleet_broadcaster():
         if active_websockets:
             fleet = traffic_daemon.get_fleet_telemetry()
             overrides = intercept_orchestrator.get_signal_overrides()
+            directives = {}
+            for jid, ov in overrides.items():
+                d = tactical_bridge.get_directive(jid)
+                if d:
+                    directives[jid] = {
+                        "stage": d.stage.value,
+                        "target_speed_mps": d.target_speed_mps,
+                        "strategy": d.stage.value,
+                    }
             avg_anom = (
                 sum(t.anomaly_score for t in tracker.all_traces().values()) / max(1, tracker.active_count)
                 if tracker.active_count > 0 else 0.0
@@ -161,6 +172,7 @@ async def fleet_broadcaster():
             payload = {
                 "fleet": fleet,
                 "overrides": overrides,
+                "directives": directives,
                 "metrics": {
                     "active_vehicles": len(fleet),
                     "active_cameras": len(camera_grid.cameras),
@@ -287,6 +299,25 @@ def cancel_intercept(req: CancelInterceptRequest):
 @app.get("/api/intercept/overrides")
 def get_active_signal_overrides():
     return intercept_orchestrator.get_signal_overrides()
+
+
+@app.get("/api/intercept/directives")
+def get_active_tactical_directives():
+    overrides = intercept_orchestrator.get_signal_overrides()
+    res = {}
+    for jid, ov in overrides.items():
+        directive = tactical_bridge.get_directive(jid)
+        if directive:
+            plan = tactical_bridge.compute_ntcip_plan(directive)
+            res[jid] = {
+                "mission_id": directive.mission_id,
+                "target_plate": directive.target_plate,
+                "stage": directive.stage.value,
+                "target_speed_mps": directive.target_speed_mps,
+                "ntcip_plan": plan,
+                "remaining_ttl": ov.get("remaining_ttl", 0),
+            }
+    return res
 
 
 @app.get("/api/od-matrix")
