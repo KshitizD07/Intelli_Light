@@ -658,15 +658,21 @@
     // -----------------------------------------------------------------------
     // Optical Camera HUD Modal Simulator
     // -----------------------------------------------------------------------
-    function openCameraModal(jid, cam) {
+    function openCameraModal(jid, cam, plate = 'SCANNING', conf = 0.98) {
       const modal = document.getElementById('camera-feed-modal');
       document.getElementById('hud-cam-id').innerText = `CAM_FEED // ${jid.slice(0, 16)}`;
-      document.getElementById('hud-cam-gps').innerText = `${cam.lat.toFixed(4)}, ${cam.lng.toFixed(4)}`;
+      if (cam && cam.lat && cam.lng) {
+        document.getElementById('hud-cam-gps').innerText = `${cam.lat.toFixed(4)}, ${cam.lng.toFixed(4)}`;
+      }
       modal.style.display = 'block';
 
-      setTimeout(() => {
-        document.getElementById('hud-plate-box').innerText = `OCR: LPR_DETECT [UP32XY9999] CONF: 0.96`;
-      }, 600);
+      if (plate && plate !== 'SCANNING') {
+        document.getElementById('hud-plate-box').innerText = `OCR: LPR_DETECT [${plate}] CONF: ${conf}`;
+        document.getElementById('hud-plate-box').style.color = '#ef4444';
+      } else {
+        document.getElementById('hud-plate-box').innerText = `OCR: OPTICAL SCAN ACTIVE...`;
+        document.getElementById('hud-plate-box').style.color = 'var(--cyan)';
+      }
     }
 
     function closeCameraModal() {
@@ -709,6 +715,19 @@
         document.getElementById('m-vehicles').innerText = data.metrics.active_vehicles || 0;
         document.getElementById('m-cameras').innerText = data.metrics.active_cameras || 0;
         document.getElementById('m-anomaly').innerText = (data.metrics.avg_anomaly || 0).toFixed(2);
+        if (data.metrics.total_alerts !== undefined) {
+          alertCount = data.metrics.total_alerts;
+          document.getElementById('m-alerts').innerText = alertCount;
+        }
+      }
+
+      // Initial Threat Feed Pre-population
+      if (data.recent_alerts && data.recent_alerts.length > 0) {
+        const list = document.getElementById('alert-list');
+        if (list.innerText.includes('Awaiting optical')) {
+          list.innerHTML = '';
+          data.recent_alerts.forEach(renderAlert);
+        }
       }
 
       // 2. Camera Markers
@@ -823,6 +842,37 @@
         document.getElementById('m-alerts').innerText = alertCount;
         renderAlert(data.alert);
         playTacticalAlarm(data.alert.type === 'alert');
+
+        // Visual Optical Camera Flash on Map
+        const jid = data.alert.junction_id;
+        const camMarker = cameraMarkers[jid];
+        if (camMarker) {
+          camMarker.setStyle({
+            radius: 12,
+            color: '#ef4444',
+            fillColor: '#dc2626',
+            fillOpacity: 1.0,
+            weight: 3
+          });
+          setTimeout(() => {
+            camMarker.setStyle({
+              radius: 5,
+              color: '#38bdf8',
+              fillColor: '#0369a1',
+              fillOpacity: 0.8,
+              weight: 1.5
+            });
+          }, 3500);
+        }
+
+        // Auto-update Optical Camera HUD modal with live detection
+        if (data.alert.type === 'alert') {
+          const cam = cameraCoordinates[jid] || {
+            lat: data.alert.extra?.lat || 26.84,
+            lng: data.alert.extra?.lng || 80.91
+          };
+          openCameraModal(jid, cam, data.alert.plate, data.alert.confidence || 0.98);
+        }
       }
     }
 

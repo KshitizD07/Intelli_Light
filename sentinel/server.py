@@ -65,6 +65,7 @@ traffic_daemon = TrafficSimulationDaemon(
 )
 
 active_websockets: List[WebSocket] = []
+recent_alerts: List[dict] = []
 
 
 # ---------------------------------------------------------------------------
@@ -118,22 +119,32 @@ tracker = TrackerManager(
 
 
 async def event_bus_listener():
-    """Drains alert and anomaly events from the bus and broadcasts them."""
+    """Subscribes to dedicated event stream, records alert history, and broadcasts alerts."""
+    sub_queue = bus.subscribe()
     while True:
         try:
-            event = await asyncio.wait_for(bus.get(), timeout=0.5)
+            event = await asyncio.wait_for(sub_queue.get(), timeout=0.5)
         except asyncio.TimeoutError:
             continue
 
         etype = event.get("type")
-        if etype in ("alert", "anomaly") and active_websockets:
-            payload = {"alert": event}
-            for ws in list(active_websockets):
-                try:
-                    await ws.send_json(payload)
-                except Exception:
-                    pass
-        bus.task_done()
+        if etype in ("alert", "anomaly"):
+            recent_alerts.append(event)
+            if len(recent_alerts) > 100:
+                recent_alerts.pop(0)
+
+            if active_websockets:
+                payload = {
+                    "alert": event,
+                    "metrics": {
+                        "total_alerts": len(recent_alerts),
+                    }
+                }
+                for ws in list(active_websockets):
+                    try:
+                        await ws.send_json(payload)
+                    except Exception:
+                        pass
 
 
 async def fleet_broadcaster():
@@ -154,6 +165,7 @@ async def fleet_broadcaster():
                     "active_vehicles": len(fleet),
                     "active_cameras": len(camera_grid.cameras),
                     "avg_anomaly": round(avg_anom, 3),
+                    "total_alerts": len(recent_alerts),
                 }
             }
             for ws in list(active_websockets):
@@ -292,6 +304,11 @@ def get_fleet_telemetry():
     return traffic_daemon.get_fleet_telemetry()
 
 
+@app.get("/api/alerts")
+def get_recent_alerts(limit: int = 50):
+    return recent_alerts[-limit:]
+
+
 @app.get("/api/audit")
 def get_audit_trail(limit: int = 50):
     import json
@@ -317,13 +334,19 @@ async def websocket_live_stream(ws: WebSocket):
     await ws.accept()
     active_websockets.append(ws)
     try:
-        # Push initial camera topology
+        avg_anom = (
+            sum(t.anomaly_score for t in tracker.all_traces().values()) / max(1, tracker.active_count)
+            if tracker.active_count > 0 else 0.0
+        )
+        # Push initial camera topology, recent alerts, and real-time metrics
         await ws.send_json({
             "cameras": camera_grid.cameras,
+            "recent_alerts": recent_alerts[-30:],
             "metrics": {
-                "active_vehicles": tracker.active_count,
+                "active_vehicles": max(len(traffic_daemon.vehicles), tracker.active_count),
                 "active_cameras": len(camera_grid.cameras),
-                "avg_anomaly": 0.0,
+                "avg_anomaly": round(avg_anom, 2),
+                "total_alerts": len(recent_alerts),
             }
         })
         while True:

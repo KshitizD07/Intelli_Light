@@ -76,6 +76,7 @@ class TrafficSimulationDaemon:
         self._running = False
         self._sim_time = 0.0
         self._path_cache: Dict[Tuple[str, str], Tuple[List[Tuple[float, float]], List[float], float]] = {}
+        self._last_camera_trigger: Dict[Tuple[str, str], float] = {}
 
         self._init_fleet()
 
@@ -192,6 +193,33 @@ class TrafficSimulationDaemon:
         )
         self.vehicles[plate] = v
 
+        # Emit initial checkpoint sighting & alert at spawn
+        s_event = sighting_event(
+            plate=plate,
+            junction_id=route[0],
+            timestamp=self._sim_time,
+            confidence=0.98,
+            speed_mps=speed,
+        )
+        self.bus.put_nowait(s_event)
+        self._last_camera_trigger[(plate, route[0])] = self._sim_time
+
+        if is_flagged and self.registry.is_flagged(plate):
+            entry = self.registry.lookup(plate)
+            reason = entry.flag_reason if entry else "Flagged Vehicle"
+            authority = entry.authority if entry else "Central Intelligence"
+            a_event = alert_event(
+                plate=plate,
+                junction_id=route[0],
+                timestamp=self._sim_time,
+                reason=f"OPTICAL ALPR HIT: {reason}",
+                authority=authority,
+            )
+            a_event["extra"]["lat"] = v.lat
+            a_event["extra"]["lng"] = v.lng
+            a_event["extra"]["distance_m"] = 0.0
+            self.bus.put_nowait(a_event)
+
     async def run(self):
         """Continuous simulation stepping loop."""
         self._running = True
@@ -260,33 +288,57 @@ class TrafficSimulationDaemon:
             v.lng = round(p1[0] + (p2[0] - p1[0]) * seg_ratio, 6)
             v.lat = round(p1[1] + (p2[1] - p1[1]) * seg_ratio, 6)
 
-            # 3. Check junction arrival
+            # 3. Continuous Optical Proximity & ALPR Detection
+            for cam_id, cam_info in self.camera_grid.cameras.items():
+                cam_lat = cam_info.get("lat")
+                cam_lng = cam_info.get("lng")
+                if cam_lat is None or cam_lng is None:
+                    continue
+
+                dx = (v.lng - cam_lng) * 99300.0
+                dy = (v.lat - cam_lat) * 110800.0
+                dist_m = math.hypot(dx, dy)
+
+                if dist_m <= 65.0:  # Within optical camera cone
+                    last_trigger = self._last_camera_trigger.get((v.plate, cam_id), -999.0)
+                    if (self._sim_time - last_trigger) >= 15.0:  # Debounce per camera
+                        self._last_camera_trigger[(v.plate, cam_id)] = self._sim_time
+
+                        # Optical sighting
+                        conf = round(random.uniform(0.94, 0.99), 2)
+                        s_event = sighting_event(
+                            plate=v.plate,
+                            junction_id=cam_id,
+                            timestamp=self._sim_time,
+                            confidence=conf,
+                            speed_mps=v.speed_mps,
+                        )
+                        self.bus.put_nowait(s_event)
+
+                        # Threat alert if flagged
+                        if self.registry.is_flagged(v.plate):
+                            entry = self.registry.lookup(v.plate)
+                            reason = entry.flag_reason if entry else "Flagged Vehicle"
+                            authority = entry.authority if entry else "Central Intelligence"
+                            a_event = alert_event(
+                                plate=v.plate,
+                                junction_id=cam_id,
+                                timestamp=self._sim_time,
+                                reason=f"OPTICAL ALPR HIT: {reason}",
+                                authority=authority,
+                            )
+                            a_event["extra"]["lat"] = cam_lat
+                            a_event["extra"]["lng"] = cam_lng
+                            a_event["extra"]["distance_m"] = round(dist_m, 1)
+                            self.bus.put_nowait(a_event)
+                            logger.warning(
+                                f"[TrafficDaemon] OPTICAL HIT: Camera {cam_id[:16]} detected {v.plate} ({reason}, {dist_m:.1f}m)"
+                            )
+
+            # 4. Check route checkpoint arrival
             if v.progress >= 1.0:
                 v.current_index = next_index
                 v.progress = 0.0
-                arrived_junction = v.route[v.current_index]
-
-                # Emit camera sighting
-                event = sighting_event(
-                    plate=v.plate,
-                    junction_id=arrived_junction,
-                    timestamp=self._sim_time,
-                    confidence=0.96,
-                    speed_mps=v.speed_mps,
-                )
-                self.bus.put_nowait(event)
-
-                # Blacklist hit alert
-                if self.registry.is_flagged(v.plate):
-                    entry = self.registry.lookup(v.plate)
-                    reason = entry.flag_reason if entry else "Flagged Vehicle"
-                    self.bus.put_nowait(alert_event(
-                        plate=v.plate,
-                        junction_id=arrived_junction,
-                        timestamp=self._sim_time,
-                        reason=f"SURVEILLANCE HIT: {reason}",
-                        authority=entry.authority if entry else "Central Ops",
-                    ))
 
             # Count vehicles near junction for GNN queue telemetry
             nearest_j = current_node if v.progress < 0.5 else next_node

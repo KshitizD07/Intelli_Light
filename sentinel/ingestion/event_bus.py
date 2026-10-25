@@ -19,7 +19,7 @@ Event schema (dict):
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, List
 
 from sentinel.config import EVENT_BUS_MAX_QUEUE
 
@@ -28,53 +28,81 @@ logger = logging.getLogger(__name__)
 
 class EventBus:
     """
-    Simple asyncio.Queue wrapper with back-pressure handling.
+    Asynchronous Publish-Subscribe EventBus supporting multiple concurrent subscribers.
+    Each subscriber receives every published event, preventing race-condition event theft.
 
     Usage:
         bus = EventBus()
 
-        # Producer (sync or async):
+        # Producer:
         bus.put_nowait({"type": "sighting", ...})
         await bus.put({"type": "sighting", ...})
 
-        # Consumer (async):
+        # Consumer (default stream):
         event = await bus.get()
+
+        # Dedicated Subscriber (separate stream):
+        sub_queue = bus.subscribe()
+        event = await sub_queue.get()
     """
 
     def __init__(self, maxsize: int = EVENT_BUS_MAX_QUEUE):
-        self._queue: asyncio.Queue = asyncio.Queue(maxsize=maxsize)
+        self._maxsize = maxsize
+        self._subscribers: List[asyncio.Queue] = []
+        self._default_queue = asyncio.Queue(maxsize=maxsize)
+        self._subscribers.append(self._default_queue)
         self._dropped = 0
 
+    def subscribe(self, maxsize: int = EVENT_BUS_MAX_QUEUE) -> asyncio.Queue:
+        """Create a dedicated subscriber queue that receives all published events."""
+        q = asyncio.Queue(maxsize=maxsize)
+        self._subscribers.append(q)
+        return q
+
+    def unsubscribe(self, q: asyncio.Queue) -> None:
+        """Remove a subscriber queue."""
+        if q in self._subscribers:
+            self._subscribers.remove(q)
+
     async def put(self, event: dict) -> None:
-        """Put an event, waiting if the queue is full."""
-        await self._queue.put(event)
+        """Put an event, delivering it to all subscribers."""
+        for q in list(self._subscribers):
+            try:
+                await q.put(event)
+            except Exception:
+                pass
 
     def put_nowait(self, event: dict) -> bool:
         """
-        Non-blocking put. Drops the event (and logs) if queue is full.
-        Returns True if enqueued, False if dropped.
+        Non-blocking put. Dispatches event to all subscribers.
+        Returns True if delivered to at least one subscriber.
         """
-        try:
-            self._queue.put_nowait(event)
-            return True
-        except asyncio.QueueFull:
-            self._dropped += 1
-            if self._dropped % 100 == 1:
-                logger.warning(
-                    f"[EventBus] Queue full - dropped {self._dropped} events total."
-                )
-            return False
+        delivered = False
+        for q in list(self._subscribers):
+            try:
+                q.put_nowait(event)
+                delivered = True
+            except asyncio.QueueFull:
+                self._dropped += 1
+                if self._dropped % 100 == 1:
+                    logger.warning(
+                        f"[EventBus] Subscriber queue full - dropped {self._dropped} events total."
+                    )
+        return delivered
 
     async def get(self) -> dict:
-        """Block until an event is available and return it."""
-        return await self._queue.get()
+        """Block until an event is available on the default subscriber queue."""
+        return await self._default_queue.get()
 
     def task_done(self) -> None:
-        self._queue.task_done()
+        try:
+            self._default_queue.task_done()
+        except ValueError:
+            pass
 
     @property
     def size(self) -> int:
-        return self._queue.qsize()
+        return self._default_queue.qsize()
 
     @property
     def dropped(self) -> int:
