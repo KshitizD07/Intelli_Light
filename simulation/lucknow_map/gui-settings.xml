@@ -1,10 +1,66 @@
 <viewsettings>
     <scheme name="real world">
-        <opengl drawJunctionShape="true" />
-        <background backgroundColor="25,30,36" showGrid="false" />
-        <edges laneWidthExaggeration="1.8" />
-        <vehicles vehicleSizeExaggeration="8.0" colorBy="given/assigned color" drawShape="true" showBlinker="true" />
-        <junctions junctionSize="2.0" drawLinkTLIndex="true" />
+        <opengl dither="0"/>
+        <background backgroundColor="118,165,122" showGrid="0" gridXSize="100.00" gridYSize="100.00"/>
+        <edges laneEdgeMode="0" scaleMode="0" laneShowBorders="1" showBikeMarkings="1" showLinkDecals="1" showLinkRules="1" showRails="1" hideConnectors="1" widthExaggeration="1.30" minSize="0.00" showDirection="0" showSublanes="1" spreadSuperposed="0"
+                edgeName_show="0" internalEdgeName_show="0" cwaEdgeName_show="0" streetName_show="0">
+            <colorScheme name="uniform">
+                <entry color="35,39,47" name="road"/>
+                <entry color="110,115,125" name="sidewalk"/>
+                <entry color="192,66,44" name="bike lane"/>
+                <entry color="118,165,122" name="green verge"/>
+                <entry color="65,145,225" name="waterway"/>
+                <entry color="80,80,80" name="no passenger"/>
+                <entry color="red" name="closed"/>
+                <entry color="green" name="connector"/>
+            </colorScheme>
+        </edges>
+        <vehicles vehicleMode="8" vehicleQuality="2" vehicle_minSize="1.00" vehicle_exaggeration="2.80" vehicle_constantSize="0" showBlinker="1"
+                  vehicleName_show="0">
+            <colorScheme name="given/assigned vehicle color">
+                <entry color="yellow"/>
+            </colorScheme>
+        </vehicles>
+        <junctions junctionMode="0" drawShape="1" drawCrossingsAndWalkingareas="1" junction_minSize="1.00" junction_exaggeration="1.00" junction_constantSize="0">
+            <colorScheme name="uniform">
+                <entry color="35,39,47"/>
+                <entry color="65,145,225" name="waterway"/>
+            </colorScheme>
+        </junctions>
+        <polys poly_minSize="0.00" poly_exaggeration="1.00" poly_constantSize="0" polyName_show="0" polyType_show="0"/>
+        <pois poi_minSize="1.00" poi_exaggeration="1.50" poi_constantSize="0" poiName_show="0" poiType_show="0"/>
     </scheme>
-    <delay value="180" />
+
+    <scheme name="standard">
+        <opengl dither="0"/>
+        <background backgroundColor="118,165,122" showGrid="0"/>
+        <edges laneEdgeMode="0" scaleMode="0" laneShowBorders="1" showBikeMarkings="1" showLinkDecals="1" showLinkRules="1" showRails="1" hideConnectors="1" widthExaggeration="1.30" minSize="0.00" showDirection="0" showSublanes="1" spreadSuperposed="0">
+            <colorScheme name="uniform">
+                <entry color="35,39,47" name="road"/>
+                <entry color="110,115,125" name="sidewalk"/>
+                <entry color="192,66,44" name="bike lane"/>
+                <entry color="118,165,122" name="green verge"/>
+                <entry color="65,145,225" name="waterway"/>
+                <entry color="80,80,80" name="no passenger"/>
+                <entry color="red" name="closed"/>
+                <entry color="green" name="connector"/>
+            </colorScheme>
+        </edges>
+        <vehicles vehicleMode="8" vehicleQuality="2" vehicle_minSize="1.00" vehicle_exaggeration="2.80" vehicle_constantSize="0" showBlinker="1">
+            <colorScheme name="given/assigned vehicle color">
+                <entry color="yellow"/>
+            </colorScheme>
+        </vehicles>
+        <junctions junctionMode="0" drawShape="1" drawCrossingsAndWalkingareas="1" junction_minSize="1.00" junction_exaggeration="1.00">
+            <colorScheme name="uniform">
+                <entry color="35,39,47"/>
+                <entry color="65,145,225" name="waterway"/>
+            </colorScheme>
+        </junctions>
+        <polys poly_minSize="0.00" poly_exaggeration="1.00" poly_constantSize="0" polyName_show="0" polyType_show="0"/>
+        <pois poi_minSize="1.00" poi_exaggeration="1.50" poi_constantSize="0" poiName_show="0" poiType_show="0"/>
+    </scheme>
+
+    <viewport zoom="2200.0" x="8650.0" y="5800.0" angle="0.0"/>
+    <delay value="160.0"/>
 </viewsettings>

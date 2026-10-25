@@ -2,6 +2,7 @@
     <input>
         <net-file value="lucknow.net.xml"/>
         <route-files value="lucknow.rou.xml"/>
+        <additional-files value="lucknow.poly.xml"/>
     </input>
     <time>
         <begin value="0"/>
