@@ -1,0 +1,35 @@
+{
+  "$schema": "https://pinaka.dev/schemas/manifest.v1.json",
+  "id": "sentinel",
+  "name": "Sentinel",
+  "tagline": "City-Wide Multi-Camera ANPR Trajectory Tracking, Congestion-Aware Anomaly Scoring & Tactical Traffic Intercept.",
+  "category": "Defense Tech / Urban AI",
+  "track": "research",
+  "status": "prototype",
+  "leadBuilder": "KSHITIZ (@KshitizD07)",
+  "repoUrl": "https://github.com/KshitizD07/Intelli_Light.git",
+  "demoUrl": "http://localhost:8888",
+  "description": "City-wide autonomous urban surveillance and traffic intercept platform targeting SIH26127 for Bharat Electronics Limited (BEL). Ingests distributed ANPR camera feeds, resolves OCR noise via multi-frame consensus voting with fuzzy confusion tolerance, reconstructs road-snapped vehicle paths, detects evasive behavior using live GNN congestion telemetry, and provides closed-loop traffic intercept orchestration with emergency vehicle preemption.",
+  "techStack": [
+    "Python",
+    "FastAPI",
+    "WebSockets",
+    "Leaflet",
+    "SUMO",
+    "TraCI",
+    "RapidFuzz",
+    "SQLite",
+    "YOLOv8",
+    "PaddleOCR"
+  ],
+  "highlights": [
+    "Multi-frame consensus OCR voter with RapidFuzz confusion pair tolerance (0/D, 1/I, 8/B, 5/S)",
+    "Kinematic plausibility watchdog (v <= 30 m/s) with real road network polyline snapping (RoadSnapper)",
+    "GNN congestion-aware anomaly scorer that cross-references route deviation with real-time queue lengths",
+    "Tactical red-wall intercept orchestrator with emergency vehicle preemption (EVP) and SHA-256 hash-chained audit logging"
+  ],
+  "gates": {
+    "currentGate": 2,
+    "lastEvaluated": "2026-10-25"
+  }
+}
