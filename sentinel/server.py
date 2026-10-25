@@ -53,7 +53,7 @@ road_snapper = RoadSnapper(SUMO_NET_FILE)
 trajectory_store = TrajectoryStore()
 gnn_bridge = GNNTelemetryBridge()
 anomaly_engine = AnomalyEngine(bus, gnn_bridge=gnn_bridge)
-intercept_orchestrator = InterceptOrchestrator(registry)
+intercept_orchestrator = InterceptOrchestrator(registry, road_snapper=road_snapper)
 tactical_bridge = TacticalGuidanceBridge(orchestrator=intercept_orchestrator)
 
 traffic_daemon = TrafficSimulationDaemon(

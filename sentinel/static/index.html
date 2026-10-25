@@ -367,6 +367,61 @@
       letter-spacing: 0.5px;
     }
 
+    /* Map Legend Overlay */
+    .map-legend {
+      position: absolute;
+      top: 15px;
+      left: 55px;
+      background: rgba(9, 14, 26, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 10px;
+      color: var(--text);
+      z-index: 1000;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+      pointer-events: auto;
+    }
+    .legend-title {
+      font-weight: 800;
+      color: var(--cyan);
+      letter-spacing: 0.8px;
+      margin-bottom: 5px;
+      font-size: 9px;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 3px;
+      font-size: 9.5px;
+      color: #94a3b8;
+    }
+    .legend-icon-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .legend-icon-ring {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      border: 2px solid;
+      flex-shrink: 0;
+    }
+    .legend-icon-line {
+      width: 14px;
+      height: 3px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
     /* Tables */
     table {
       width: 100%;
@@ -440,6 +495,21 @@
     <!-- Geospatial Map Viewport -->
     <div id="map"></div>
 
+    <!-- Map Legend Overlay -->
+    <div class="map-legend">
+      <div class="legend-title">
+        <span>Map Legend</span>
+        <span style="font-size: 8px; color: var(--text-muted);">BEL / ICCC</span>
+      </div>
+      <div class="legend-item"><div class="legend-icon-dot" style="background: #ef4444;"></div>Suspect Vehicle (Live Position)</div>
+      <div class="legend-item"><div class="legend-icon-dot" style="background: #38bdf8;"></div>Civilian Traffic (Active Fleet)</div>
+      <div class="legend-item"><div class="legend-icon-ring" style="border-color: #38bdf8;"></div>Optical ANPR Camera (Checkpoint)</div>
+      <div class="legend-item"><div class="legend-icon-ring" style="border-color: #ef4444; background: rgba(239, 68, 68, 0.25);"></div>Red-Wall Choke Point (Held Signal)</div>
+      <div class="legend-item"><div class="legend-icon-line" style="background: #ef4444;"></div>Suspect Route / Projected Trajectory</div>
+      <div class="legend-item"><div class="legend-icon-line" style="background: #f59e0b;"></div>Anomalous Route Detour</div>
+      <div class="legend-item"><div class="legend-icon-line" style="background: #38bdf8;"></div>Normal Civilian Corridor</div>
+    </div>
+
     <!-- Live Optical Camera HUD Modal -->
     <div id="camera-feed-modal">
       <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -447,6 +517,7 @@
         <button style="background: none; border: none; color: var(--text-muted); cursor: pointer;" onclick="closeCameraModal()">&times;</button>
       </div>
       <div class="feed-viewport">
+        <canvas id="hud-plate-canvas" width="296" height="160" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></canvas>
         <div class="feed-grid"></div>
         <div class="feed-crosshair"></div>
         <div style="position: absolute; top: 8px; left: 8px;" class="hud-text">REC [●] 30 FPS</div>
@@ -495,7 +566,7 @@
             <input type="text" id="int-plate" value="UP32XY9999" />
           </div>
 
-          <button type="button" class="btn" style="background: rgba(56, 189, 248, 0.12); color: var(--cyan); border: 1px solid rgba(56, 189, 248, 0.4); margin-bottom: 8px; font-size: 10px;" onclick="autoLocateTarget()">
+          <button type="button" class="btn" id="btn-target-lock" style="background: rgba(56, 189, 248, 0.12); color: var(--cyan); border: 1px solid rgba(56, 189, 248, 0.4); margin-bottom: 8px; font-size: 10px;" onclick="toggleTargetLock()">
             &#8982; LOCK LIVE LOCATION OF SUSPECT
           </button>
 
@@ -660,9 +731,152 @@
     }
 
     // -----------------------------------------------------------------------
-    // Optical Camera HUD Modal Simulator
+    // Optical Camera HUD Modal Simulator & HSRP Plate Synthesis
     // -----------------------------------------------------------------------
-    function openCameraModal(jid, cam, plate = 'SCANNING', conf = 0.98) {
+    function renderHSRPPlate(plate, conf, isFlagged) {
+      const canvas = document.getElementById('hud-plate-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+
+      // 1. Asphalt / car front bumper background
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+      bgGrad.addColorStop(0, '#0a0f1d');
+      bgGrad.addColorStop(0.5, '#1e293b');
+      bgGrad.addColorStop(1, '#020617');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      // Vehicle front grille horizontal lines
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+      ctx.lineWidth = 2;
+      for (let y = 14; y < h; y += 16) {
+        ctx.beginPath();
+        ctx.moveTo(8, y);
+        ctx.lineTo(w - 8, y);
+        ctx.stroke();
+      }
+
+      // 2. High Security Registration Plate (HSRP) Base
+      const pw = 208;
+      const ph = 54;
+      const px = (w - pw) / 2;
+      const py = (h - ph) / 2;
+
+      // Drop shadow for photorealism
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 3;
+
+      // Plate Body (High-Reflective White)
+      ctx.fillStyle = '#f8fafc';
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(px, py, pw, ph, 4);
+        ctx.fill();
+      } else {
+        ctx.fillRect(px, py, pw, ph);
+      }
+
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+
+      // Plate Border
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.8;
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(px, py, pw, ph, 4);
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(px, py, pw, ph);
+      }
+
+      // 3. Blue Left Band (IND International Identifier)
+      const bandW = 24;
+      ctx.fillStyle = '#1d4ed8'; // Bharat blue
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(px, py, bandW, ph, [4, 0, 0, 4]);
+        ctx.fill();
+      } else {
+        ctx.fillRect(px, py, bandW, ph);
+      }
+
+      // Ashoka Chakra Emblem icon
+      ctx.strokeStyle = '#60a5fa';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(px + bandW / 2, py + 13, 5, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // IND text
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 8px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('IND', px + bandW / 2, py + 33);
+
+      // Laser hologram emblem
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(px + bandW + 4, py + 5, 7, 7);
+
+      // 4. Registration Characters (FE-Schrift Font)
+      const displayPlate = plate && plate !== 'SCANNING' ? plate : 'UP 32 XY 9999';
+      ctx.fillStyle = '#090e1a';
+      ctx.font = '900 17px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.letterSpacing = '1.5px';
+      ctx.fillText(displayPlate, px + bandW + (pw - bandW) / 2, py + ph / 2 + 1);
+
+      // 5. YOLOv8 ALPR Bounding Box Overlay
+      const bbMargin = 6;
+      const bbColor = isFlagged ? '#ef4444' : '#10b981';
+      ctx.strokeStyle = bbColor;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 3]);
+      ctx.strokeRect(px - bbMargin, py - bbMargin, pw + bbMargin * 2, ph + bbMargin * 2);
+      ctx.setLineDash([]);
+
+      // Corner Brackets
+      const cLen = 8;
+      ctx.strokeStyle = bbColor;
+      ctx.lineWidth = 2.5;
+
+      // Corners
+      ctx.beginPath();
+      ctx.moveTo(px - bbMargin - 1, py - bbMargin + cLen);
+      ctx.lineTo(px - bbMargin - 1, py - bbMargin - 1);
+      ctx.lineTo(px - bbMargin + cLen, py - bbMargin - 1);
+
+      ctx.moveTo(px + pw + bbMargin - cLen, py - bbMargin - 1);
+      ctx.lineTo(px + pw + bbMargin + 1, py - bbMargin - 1);
+      ctx.lineTo(px + pw + bbMargin + 1, py - bbMargin + cLen);
+
+      ctx.moveTo(px - bbMargin - 1, py + ph + bbMargin - cLen);
+      ctx.lineTo(px - bbMargin - 1, py + ph + bbMargin + 1);
+      ctx.lineTo(px - bbMargin + cLen, py + ph + bbMargin + 1);
+
+      ctx.moveTo(px + pw + bbMargin - cLen, py + ph + bbMargin + 1);
+      ctx.lineTo(px + pw + bbMargin + 1, py + ph + bbMargin + 1);
+      ctx.lineTo(px + pw + bbMargin + 1, py + ph + bbMargin - cLen);
+      ctx.stroke();
+
+      // Detection Tag Label
+      ctx.fillStyle = bbColor;
+      ctx.fillRect(px - bbMargin - 1, py - bbMargin - 15, 115, 13);
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 8.5px monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      const confText = typeof conf === 'number' ? (conf * 100).toFixed(1) + '%' : '98.4%';
+      ctx.fillText(`PLATE: ${confText}`, px - bbMargin + 3, py - bbMargin - 8);
+    }
+
+    function openCameraModal(jid, cam, plate = 'UP32XY9999', conf = 0.98) {
       const modal = document.getElementById('camera-feed-modal');
       document.getElementById('hud-cam-id').innerText = `CAM_FEED // ${jid.slice(0, 16)}`;
       if (cam && cam.lat && cam.lng) {
@@ -670,13 +884,17 @@
       }
       modal.style.display = 'block';
 
+      const isThreat = plate.includes('9999') || plate === 'UP32XY9999';
       if (plate && plate !== 'SCANNING') {
-        document.getElementById('hud-plate-box').innerText = `OCR: LPR_DETECT [${plate}] CONF: ${conf}`;
-        document.getElementById('hud-plate-box').style.color = '#ef4444';
+        const confStr = typeof conf === 'number' ? conf.toFixed(2) : conf;
+        document.getElementById('hud-plate-box').innerText = `OCR: LPR_DETECT [${plate}] CONF: ${confStr}`;
+        document.getElementById('hud-plate-box').style.color = isThreat ? '#ef4444' : 'var(--green)';
       } else {
         document.getElementById('hud-plate-box').innerText = `OCR: OPTICAL SCAN ACTIVE...`;
         document.getElementById('hud-plate-box').style.color = 'var(--cyan)';
       }
+
+      renderHSRPPlate(plate, conf, isThreat);
     }
 
     function closeCameraModal() {
@@ -780,6 +998,17 @@
             vehicleMarkers[v.plate].setStyle({ color: markerColor, fillColor: markerColor, radius: isFlagged ? 8 : 5 });
             vehicleMarkers[v.plate].setPopupContent(popupContent);
           }
+
+          // Real-time lock tracking camera follow
+          if (lockedTrackPlate && v.plate === lockedTrackPlate) {
+            map.panTo([v.lat, v.lng], { animate: true, duration: 0.5 });
+            if (v.current_junction) {
+              const juncInput = document.getElementById('int-junction');
+              if (juncInput && document.activeElement !== juncInput) {
+                juncInput.value = v.current_junction;
+              }
+            }
+          }
         });
       }
 
@@ -828,15 +1057,17 @@
           }
           window.perimeterLayers = [];
 
-          // Draw distinct glowing choke-point circles at each locked camera junction
+          // Draw distinct glowing choke-point circles at each locked junction
           jids.forEach(jid => {
-            const cam = cameraCoordinates[jid];
-            if (cam && cam.lat && cam.lng) {
-              const ring = L.circle([cam.lat, cam.lng], {
+            const ov = overrides[jid];
+            const lat = (ov && ov.lat) || (cameraCoordinates[jid] && cameraCoordinates[jid].lat);
+            const lng = (ov && ov.lng) || (cameraCoordinates[jid] && cameraCoordinates[jid].lng);
+            if (lat && lng) {
+              const ring = L.circle([lat, lng], {
                 radius: 120,
                 color: '#ef4444',
                 fillColor: '#ef4444',
-                fillOpacity: 0.25,
+                fillOpacity: 0.28,
                 weight: 2,
                 dashArray: '4, 4'
               }).bindTooltip(`<b>RED-WALL CHOKE POINT</b><br/>${jid.slice(0, 20)}`, { direction: 'top' }).addTo(map);
@@ -844,10 +1075,16 @@
             }
           });
 
-          // Draw polygon if 3+ points
-          const points = jids
-            .filter(jid => cameraCoordinates[jid])
-            .map(jid => [cameraCoordinates[jid].lat, cameraCoordinates[jid].lng]);
+          // Draw perimeter polygon if 3+ points
+          const points = [];
+          jids.forEach(jid => {
+            const ov = overrides[jid];
+            const lat = (ov && ov.lat) || (cameraCoordinates[jid] && cameraCoordinates[jid].lat);
+            const lng = (ov && ov.lng) || (cameraCoordinates[jid] && cameraCoordinates[jid].lng);
+            if (lat && lng) {
+              points.push([lat, lng]);
+            }
+          });
 
           if (points.length >= 3) {
             const poly = L.polygon(points, {
@@ -935,8 +1172,36 @@
     // -----------------------------------------------------------------------
     // REST API Actions
     // -----------------------------------------------------------------------
+    let lockedTrackPlate = null;
+
+    function toggleTargetLock() {
+      const plate = document.getElementById('int-plate').value.trim();
+      const btn = document.getElementById('btn-target-lock');
+      if (lockedTrackPlate === plate) {
+        lockedTrackPlate = null;
+        if (btn) {
+          btn.innerHTML = '&#8982; LOCK LIVE LOCATION OF SUSPECT';
+          btn.style.background = 'rgba(56, 189, 248, 0.12)';
+        }
+      } else {
+        lockedTrackPlate = plate;
+        if (btn) {
+          btn.innerHTML = '&#128274; TRACKING SUSPECT (LOCKED)';
+          btn.style.background = 'rgba(239, 68, 68, 0.35)';
+        }
+        autoLocateTarget();
+      }
+    }
+
     async function autoLocateTarget() {
       const plate = document.getElementById('int-plate').value.trim();
+      // Fast path: Center on Leaflet marker immediately if present
+      if (vehicleMarkers[plate]) {
+        const marker = vehicleMarkers[plate];
+        map.setView(marker.getLatLng(), 16);
+        marker.openPopup();
+      }
+
       try {
         const res = await fetch('/api/fleet');
         const fleet = await res.json();
@@ -945,6 +1210,9 @@
           document.getElementById('int-junction').value = target.current_junction;
           if (target.lat && target.lng) {
             map.setView([target.lat, target.lng], 16);
+            if (vehicleMarkers[plate]) {
+              vehicleMarkers[plate].openPopup();
+            }
           }
         } else {
           alert('Vehicle ' + plate + ' is currently not active on the road network.');
@@ -983,6 +1251,14 @@
       if (!data.success) {
         alert('Intercept Directive Failed: ' + data.error);
       } else {
+        // Cache junction coordinates immediately so perimeter draws without delay
+        if (data.junction_coordinates) {
+          Object.entries(data.junction_coordinates).forEach(([jid, coord]) => {
+            if (!cameraCoordinates[jid]) {
+              cameraCoordinates[jid] = coord;
+            }
+          });
+        }
         // Center view on target vehicle
         if (vehicleMarkers[plate]) {
           map.setView(vehicleMarkers[plate].getLatLng(), 16);
@@ -1062,6 +1338,9 @@
     loadRegistry();
     loadODMatrix();
     setInterval(loadODMatrix, 5000);
+    setTimeout(() => {
+      openCameraModal('cluster_2229834379_2229834384_2234594449', { lat: 26.8524, lng: 80.9388 }, 'UP32XY9999', 0.985);
+    }, 800);
   </script>
 </body>
 </html>

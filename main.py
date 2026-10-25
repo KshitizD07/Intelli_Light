@@ -56,6 +56,22 @@ def run_sentinel_web(args):
     uvicorn.run("sentinel.server:app", host=args.host, port=args.port, reload=False)
 
 
+def run_sentinel_gui(args):
+    """Launch the real-time Sentinel + Intelli-Light SUMO GUI visualizer."""
+    from sentinel.gui_demo import run_gui_scenario
+    from pathlib import Path
+
+    cfg = args.cfg or str(Path(__file__).parent / "simulation" / "lucknow_map" / "lucknow.sumocfg")
+    run_gui_scenario(
+        cfg_file=cfg,
+        target_plate=args.plate,
+        use_gui=not args.no_gui,
+        delay_ms=args.delay,
+        max_steps=args.max_steps,
+        auto_intercept_step=args.intercept_step,
+    )
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="intelli-light",
@@ -100,6 +116,18 @@ if __name__ == "__main__":
     sentinel_web_p.add_argument("--host", default="0.0.0.0", help="Host interface")
     sentinel_web_p.add_argument("--port", type=int, default=8888, help="Port")
     sentinel_web_p.set_defaults(func=run_sentinel_web)
+
+    sentinel_gui_p = subparsers.add_parser(
+        "sentinel-gui",
+        help="Launch the Sentinel + Intelli-Light real-time SUMO-GUI physical demonstration",
+    )
+    sentinel_gui_p.add_argument("--cfg", default="", help="Path to lucknow.sumocfg")
+    sentinel_gui_p.add_argument("--plate", default="UP32XY9999", help="Target license plate")
+    sentinel_gui_p.add_argument("--no-gui", action="store_true", help="Run without GUI (headless)")
+    sentinel_gui_p.add_argument("--delay", type=int, default=80, help="Delay per step in ms")
+    sentinel_gui_p.add_argument("--max-steps", type=int, default=500, help="Maximum steps")
+    sentinel_gui_p.add_argument("--intercept-step", type=int, default=15, help="Step to authorize intercept")
+    sentinel_gui_p.set_defaults(func=run_sentinel_gui)
 
     args = parser.parse_args()
     args.func(args)

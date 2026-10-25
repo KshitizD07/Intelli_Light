@@ -53,10 +53,19 @@ class InterceptOrchestrator:
         self,
         registry: FlaggedVehicleRegistry,
         predictor: Optional[MarkovPathPredictor] = None,
+        road_snapper: Optional[Any] = None,
         audit_file: str = AUDIT_LOG_PATH,
     ):
         self.registry = registry
         self.predictor = predictor or MarkovPathPredictor()
+        if road_snapper is None:
+            try:
+                from sentinel.tracker.road_snapper import RoadSnapper
+                self.road_snapper = RoadSnapper()
+            except Exception:
+                self.road_snapper = None
+        else:
+            self.road_snapper = road_snapper
         self.audit_file = audit_file
         self.active_missions: Dict[str, InterceptMission] = {}  # plate -> mission
         self._last_audit_hash: str = "0" * 64
@@ -151,11 +160,19 @@ class InterceptOrchestrator:
             f"Perimeter: {target_junctions}"
         )
 
+        junc_coords = {}
+        if self.road_snapper:
+            for jid in target_junctions:
+                coord = self.road_snapper.get_junction_coord(jid)
+                if coord:
+                    junc_coords[jid] = {"lng": coord[0], "lat": coord[1]}
+
         return {
             "success": True,
             "mission_id": mission_id,
             "plate": plate,
             "overridden_junctions": target_junctions,
+            "junction_coordinates": junc_coords,
             "ttl_seconds": INTERCEPT_TTL_S,
         }
 
@@ -178,10 +195,7 @@ class InterceptOrchestrator:
         """
         Returns active phase overrides for traffic controllers.
         Checks TTL expiry before returning.
-        Format:
-          {
-            "J_042": {"mode": "RED_WALL", "hold_seconds": 90, "plate": "UP32XY9999"}
-          }
+        Enriches records with geographic coordinates (lat, lng).
         """
         now = time.time()
         expired = [p for p, m in self.active_missions.items() if now >= m.expires_at]
@@ -193,11 +207,14 @@ class InterceptOrchestrator:
         overrides: Dict[str, Dict[str, Any]] = {}
         for plate, mission in self.active_missions.items():
             for jid in mission.overridden_junctions:
+                coord = self.road_snapper.get_junction_coord(jid) if self.road_snapper else None
                 overrides[jid] = {
                     "mode": "RED_WALL",
                     "hold_seconds": INTERCEPT_RED_HOLD_S,
                     "target_plate": plate,
                     "mission_id": mission.mission_id,
                     "remaining_ttl": max(0, int(mission.expires_at - now)),
+                    "lng": coord[0] if coord else None,
+                    "lat": coord[1] if coord else None,
                 }
         return overrides
