@@ -43,7 +43,7 @@ def test_gui_scenario_with_mock_traci():
         )
 
         # Assert target vehicle was colored bright red
-        mock_traci.vehicle.setColor.assert_called_with("veh_0", (255, 30, 30, 255))
+        mock_traci.vehicle.setColor.assert_any_call("veh_0", (255, 20, 20, 255))
         # Assert simulation steps were executed
         assert mock_traci.simulationStep.call_count == 5
         # Assert TraCI was properly closed

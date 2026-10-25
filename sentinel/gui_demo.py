@@ -125,12 +125,15 @@ def run_gui_scenario(
     cmd = [
         binary,
         "-c", cfg_file,
-        "--start", "true",
-        "--quit-on-end", "false",
+        "--start",
         "--waiting-time-memory", "1000",
         "--step-length", "1.0",
         "--no-step-log", "true",
     ]
+
+    gui_settings_path = os.path.join(project_root, "simulation", "lucknow_map", "gui-settings.xml")
+    if use_gui and os.path.exists(gui_settings_path):
+        cmd.extend(["--gui-settings-file", gui_settings_path])
 
     try:
         traci.start(cmd)
@@ -142,7 +145,7 @@ def run_gui_scenario(
     print("[INFO] Setting up camera tracking and vehicle styles...\n")
 
     # Pick or designate suspect vehicle
-    target_veh_id = None
+    target_veh_id = "0"
     target_tls_id = None
     intercept_active = False
 
@@ -156,27 +159,33 @@ def run_gui_scenario(
             if not active_vehs:
                 continue
 
-            # Designate target vehicle if not yet assigned
-            if target_veh_id is None or target_veh_id not in active_vehs:
-                # Find an active vehicle that has traveled some distance or pick the lead vehicle
-                for vid in active_vehs:
-                    if traci.vehicle.getSpeed(vid) > 2.0:
-                        target_veh_id = vid
-                        break
-                if target_veh_id is None:
-                    target_veh_id = active_vehs[0]
+            # Ensure suspect vehicle ID is active or pick lead vehicle
+            if target_veh_id not in active_vehs:
+                target_veh_id = active_vehs[0]
 
-                # Style target vehicle in Bright Red
-                traci.vehicle.setColor(target_veh_id, (255, 30, 30, 255))
-                print(f"[SENTINEL] Vehicle '{target_veh_id}' assigned as Target Suspect '{target_plate}' (COLORED BRIGHT RED)")
-
-                if use_gui:
+            # Style vehicles: Suspect = Bright Red, Civilians = Distinct Colors
+            for vid in active_vehs:
+                if vid == target_veh_id:
+                    traci.vehicle.setColor(vid, (255, 20, 20, 255))
+                else:
                     try:
-                        # Smoothly track vehicle in GUI viewport
-                        traci.gui.trackVehicle("View #0", target_veh_id)
-                        traci.gui.setZoom("View #0", 1200.0)
-                    except Exception:
-                        pass
+                        v_num = int(vid)
+                        if v_num % 3 == 0:
+                            traci.vehicle.setColor(vid, (56, 189, 248, 255))   # Cyan civilian
+                        elif v_num % 3 == 1:
+                            traci.vehicle.setColor(vid, (241, 245, 249, 255))  # White civilian
+                        else:
+                            traci.vehicle.setColor(vid, (250, 204, 21, 255))   # Yellow civilian
+                    except ValueError:
+                        traci.vehicle.setColor(vid, (148, 163, 184, 255))
+
+            if use_gui and step <= 2:
+                try:
+                    traci.gui.setSchema("View #0", "real world")
+                    traci.gui.trackVehicle("View #0", target_veh_id)
+                    traci.gui.setZoom("View #0", 2800.0)
+                except Exception:
+                    pass
 
             # Update suspect telemetry
             pos = traci.vehicle.getPosition(target_veh_id)
@@ -254,10 +263,20 @@ def run_gui_scenario(
                         print(f"Suspect boxed in behind controlled civilian queue at Step {step}.")
                         print("All safety invariants preserved: 0 pedestrian conflicts, 0 collisions.")
                         print("=" * 68 + "\n")
-                        time.sleep(3.0)
+                        print(">>> SIMULATION PAUSED. Inspect the vehicles and signals in the GUI.")
+                        print(">>> Press ENTER in this console when ready to close...")
+                        try:
+                            input()
+                        except Exception:
+                            time.sleep(15.0)
                         break
+            else:
+                kmh = speed * 3.6
+                print(f"Step {step:03d} | Normal Flow | Suspect Speed: {speed:4.1f} m/s ({kmh:4.1f} km/h) | Approaching Checkpoint...")
 
             # Introduce configured delay for visual smoothness in GUI
+            if delay_ms > 0:
+                time.sleep(delay_ms / 1000.0)
             if delay_ms > 0:
                 time.sleep(delay_ms / 1000.0)
 

@@ -1,0 +1,10 @@
+<viewsettings>
+    <scheme name="real world">
+        <opengl drawJunctionShape="true" />
+        <background backgroundColor="25,30,36" showGrid="false" />
+        <edges laneWidthExaggeration="1.8" />
+        <vehicles vehicleSizeExaggeration="8.0" colorBy="given/assigned color" drawShape="true" showBlinker="true" />
+        <junctions junctionSize="2.0" drawLinkTLIndex="true" />
+    </scheme>
+    <delay value="180" />
+</viewsettings>
