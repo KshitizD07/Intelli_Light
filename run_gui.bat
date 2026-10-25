@@ -13,5 +13,5 @@ echo  - Suspect will brake behind civilian queue and be apprehended (Option A).
 echo  - Signals will turn green and normal traffic flow will resume!
 echo ======================================================================
 echo.
-".\venv\Scripts\python.exe" main.py sentinel-gui --delay 180
+".\venv\Scripts\python.exe" main.py sentinel-gui --scale 5.0 --delay 400
 pause

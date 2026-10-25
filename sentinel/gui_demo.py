@@ -186,6 +186,7 @@ def run_gui_scenario(
     max_steps: int = 1200,
     auto_intercept_step: int = 40,
     manual_mode: bool = True,
+    scale: float = 1.0,
 ):
     """
     Executes the interactive SUMO GUI scenario with authentic physical car-following deceleration,
@@ -200,8 +201,9 @@ def run_gui_scenario(
     print(f"SUMO Binary:       {binary}")
     print(f"City Network:      Lucknow Urban Metropolitan Area")
     print(f"Intelli-Light:     Active (Real-Time Max-Pressure Queue Balancing)")
+    print(f"Traffic Scale:     {scale:.1f}x Demand Volume")
     print(f"Initial Target:    {target_plate}")
-    print(f"Step Delay:        {delay_ms} ms")
+    print(f"Step Delay:        {delay_ms} ms (Smooth Visual Playback)")
     print(f"Operator Control:  Press [SPACE] or [R] in this terminal to DEPLOY RED-WALL")
     print(f"Physical Wall:     100% Native SUMO Car-Following Deceleration (No Artificial slowDown)")
     print(f"Intercept Policy:  Option A (Box Behind Civilian Queue -> Apprehend -> Disperse Flow)")
@@ -231,6 +233,10 @@ def run_gui_scenario(
         "--step-length", "1.0",
         "--no-step-log", "true",
     ]
+    if scale and scale != 1.0:
+        cmd.extend(["--scale", str(scale)])
+    if use_gui and delay_ms > 0:
+        cmd.extend(["--delay", str(delay_ms)])
 
     gui_settings_path = os.path.join(project_root, "simulation", "lucknow_map", "gui-settings.xml")
     if use_gui and os.path.exists(gui_settings_path):
@@ -252,6 +258,8 @@ def run_gui_scenario(
             traci.gui.setOffset("View #0", 5580.0, 6400.0)
             traci.gui.setZoom("View #0", 1200.0)
             traci.gui.setSchema("View #0", "real world")
+            if delay_ms > 0:
+                traci.gui.setDelay("View #0", delay_ms)
         except Exception:
             pass
 
@@ -616,6 +624,12 @@ def main():
         action="store_true",
         help="Auto-trigger intercept at --intercept-step without waiting for manual keypress",
     )
+    parser.add_argument(
+        "--scale",
+        type=float,
+        default=1.0,
+        help="Traffic demand scale factor (e.g. 5.0 for 5x traffic)",
+    )
 
     args = parser.parse_args()
     run_gui_scenario(
@@ -626,6 +640,7 @@ def main():
         max_steps=args.max_steps,
         auto_intercept_step=args.intercept_step,
         manual_mode=not args.auto,
+        scale=args.scale,
     )
 
 

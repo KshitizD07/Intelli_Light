@@ -70,6 +70,7 @@ def run_sentinel_gui(args):
         max_steps=args.max_steps,
         auto_intercept_step=args.intercept_step,
         manual_mode=not getattr(args, "auto", False),
+        scale=getattr(args, "scale", 1.0),
     )
 
 
@@ -129,6 +130,7 @@ if __name__ == "__main__":
     sentinel_gui_p.add_argument("--max-steps", type=int, default=800, help="Maximum steps")
     sentinel_gui_p.add_argument("--intercept-step", type=int, default=35, help="Step to authorize intercept")
     sentinel_gui_p.add_argument("--auto", action="store_true", help="Auto-trigger intercept instead of waiting for manual [SPACE]/[R]")
+    sentinel_gui_p.add_argument("--scale", type=float, default=1.0, help="Traffic demand scale factor (e.g. 5.0 for 5x traffic)")
     sentinel_gui_p.set_defaults(func=run_sentinel_gui)
 
     args = parser.parse_args()

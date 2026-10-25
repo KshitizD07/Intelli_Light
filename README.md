@@ -1,105 +1,111 @@
-# 🚦 Intelli-Light 3.0: Universal Adaptive Traffic Signal Control
+# 🚦 Intelli-Light 3.0 & Sentinel: Autonomous Urban Mobility & City-Wide Surveillance Platform
 
-> **Graph-Based Reinforcement Learning, Generative Traffic Modeling, and Deterministic Failsafes for Complex, Chaotic Urban Grids.**
+> **Universal Adaptive Traffic Signal Control (GAT + LSTM Spatio-Temporal MARL, SUMO, NTCIP 1202) alongside City-Wide ANPR Trajectory Tracking, Congestion-Aware Anomaly Detection, and Tactical Traffic Intercept Orchestration.**  
+> **Platform Architect:** KSHITIZ (Pinaka Studios)  
+> **Target Problem Statements:** Complex Urban Mobility Optimization & SIH26127 / Bharat Electronics Limited (BEL)
 
 ---
 
 ## 🌟 Executive Summary
 
-**Intelli-Light** is a state-of-the-art multi-agent adaptive traffic signal control system designed to solve heavy congestion, emergency vehicle delay, and unfair starvation in chaotic urban traffic environments (such as Indian metro networks like Lucknow).
+This repository houses two complementary, production-engineered intelligent transportation systems:
 
-By replacing rigid grid-based observation arrays with **Graph Neural Networks (GNN)**, **Spatio-Temporal MARL (GAT + LSTM)**, and **GAN-driven Generative Traffic Synthesis**, Intelli-Light achieves topology-agnostic control capable of managing 3-way, 4-way, 5-way, or 6-way non-standard intersections while coordinating city-wide green waves. 
+1. **Intelli-Light 3.0**: An adaptive, multi-agent traffic signal control platform designed to eliminate heavy congestion, unfair starvation, and emergency vehicle delays across chaotic urban grids (modeled after Indian metropolitan networks such as Lucknow). By employing **Graph Neural Networks (GNN)**, **Spatio-Temporal MARL (GAT + LSTM)**, and **NTCIP 1202 SNMP Hardware Controllers** wrapped in a **Deterministic Failsafe Watchdog**, Intelli-Light achieves topology-agnostic signal coordination across non-standard 3-way, 4-way, 5-way, and 6-way intersections.
 
-To bridge the gap between AI research and physical road deployment, Intelli-Light embeds a **Deterministic Failsafe Watchdog Engine** and standard **NTCIP 1202 SNMP Hardware Controllers** for direct plug-and-play installation into municipal traffic cabinets.
+2. **Sentinel**: An autonomous, city-wide surveillance and traffic intelligence layer operating alongside Intelli-Light (targeting problem statement **SIH26127** for **Bharat Electronics Limited**). Sentinel ingests distributed ANPR camera sightings, denoises optical reads via multi-frame consensus voting with fuzzy OCR substitution tolerance, reconstructs road-snapped vehicle trajectories, detects evasive behavior using live GNN congestion telemetry, and provides non-violent traffic intercept orchestration with emergency vehicle preemption and cryptographic audit logging.
+
+---
+
+## 🏛️ System Architecture & Interaction
+
+```mermaid
+flowchart TD
+    subgraph CityGrid["Physical & Simulated Urban Grid (SUMO Lucknow / OSM)"]
+        OSM["OpenStreetMap Ingestion (Lucknow Network)"] --> NET["SUMO Net & Route Files (.net.xml, .rou.xml)"]
+        NET --> DET["Inductive Loops, Radar & Camera Checkpoints"]
+        SIG["Traffic Signal Controllers (NTCIP 1202 Actuators)"]
+    end
+
+    subgraph IntelliLightCore["Intelli-Light 3.0: Adaptive Signal Control Core"]
+        DET --> OBS["Dynamic Graph Topology & Queue Observations"]
+        OBS --> GNN["Topology-Agnostic GNN / ST-MARL Policy (PyTorch)"]
+        GNN --> PRE_ACT["Proposed Signal Action Duration"]
+        PRE_ACT --> WATCHDOG["Deterministic Failsafe Watchdog (Latency, Starvation, EVP)"]
+        WATCHDOG -->|Normal Mode| SIG
+        WATCHDOG -->|Fallback Soft/Hard| SIG
+    end
+
+    subgraph SentinelCore["Sentinel: City-Wide Surveillance & Tactical Intercept"]
+        DET --> VOTER["Multi-Frame Consensus OCR Voter (RapidFuzz Confusion Matrix)"]
+        VOTER --> BUS["Asynchronous Event Bus (asyncio)"]
+        BUS --> TRACKER["Tracker Manager & RoadSnapper (SUMO Graph Polyline)"]
+        TRACKER --> STORE[("SQLite Trajectory Store (traces.db & O-D Matrix)")]
+        TRACKER --> ANOMALY["Congestion-Aware Anomaly Engine"]
+        ANOMALY --> REGISTRY[("Flagged Vehicle Registry (registry.db)")]
+        REGISTRY --> INTERCEPT["Tactical Intercept Orchestrator"]
+        INTERCEPT --> MARKOV["Markov Escape Path Predictor"]
+        MARKOV --> TACTICAL_BRIDGE["Tactical Guidance Bridge (Progressive Metering & Choke)"]
+    end
+
+    %% Decoupled Interfaces
+    WATCHDOG -.->|1. Real-Time Queue & Congestion Telemetry| ANOMALY
+    TACTICAL_BRIDGE ==>|2. Controlled Phase Override Request| WATCHDOG
+    INTERCEPT --> AUDIT[("Cryptographic Audit Ledger (SHA-256 Hash Chain)")]
+```
+
+> [!NOTE]
+> For complete technical diagrams, flowcharts, sequence diagrams, class models, and state machines, see [`docs/SYSTEM_ARCHITECTURE_AND_DIAGRAMS.md`](docs/SYSTEM_ARCHITECTURE_AND_DIAGRAMS.md).
+
+---
+
+## 🛡️ Architectural Separation of Concerns
+
+* **Intelli-Light Independence**: Intelli-Light operates as a standalone production traffic controller. It optimizes traffic flow, clears lane backlogs, balances queue pressures, and coordinates green waves across the city. It requires zero knowledge of vehicle identities.
+* **Sentinel Decoupled Layer**: Sentinel operates as an asynchronous intelligence layer. It reads road graphs and real-time congestion telemetry via [`sentinel/anomaly/gnn_bridge.py`](sentinel/anomaly/gnn_bridge.py) to evaluate route justifications.
+* **Safety-Regulated Actuation**: Sentinel interacts with physical signals **only** via authorized phase override requests passed through [`sentinel/intercept/failsafe_bridge.py`](sentinel/intercept/failsafe_bridge.py) into Intelli-Light's [`deployment/failsafe.py`](deployment/failsafe.py). Sentinel never mutates neural network weights or core reinforcement learning loops.
 
 ---
 
 ## 🔥 Key Features & Capabilities
 
-### 🧠 1. Graph Neural Networks (GNN) & ST-MARL Core
-* **Topology-Agnostic GCN (`models/gnn_extractor.py`)**: PyTorch-based Graph Convolutional Network feature extractor that dynamically aggregates $N$-hop neighborhood states across variable-degree road networks.
-* **Spatio-Temporal Graph Attention (`models/st_marl_model.py`)**: Combines Graph Attention Networks (GAT) with LSTM temporal encoders to capture both spatial neighbor interaction and historical queue trends over past timesteps.
+### 🧠 1. Intelli-Light 3.0: Graph Neural Networks & ST-MARL Core
+* **Topology-Agnostic GCN ([`models/gnn_extractor.py`](models/gnn_extractor.py))**: PyTorch-based Graph Convolutional Network feature extractor that dynamically aggregates $N$-hop neighborhood states across variable-degree road networks.
+* **Spatio-Temporal Graph Attention ([`models/st_marl_model.py`](models/st_marl_model.py))**: Combines Graph Attention Networks (GAT) to dynamically weigh incoming traffic from adjacent nodes with an LSTM temporal sequence model to capture queue accumulation trends over past timesteps.
 * **Multi-Agent Parameter Sharing (ILPS)**: Scalable Multi-Agent Reinforcement Learning (MARL) enabling coordinated signal control across arbitrary city topologies without exploding observation spaces.
 
-### 🎲 2. GAN & Generative Traffic Demand Pipeline
-* **Generative Scenario & Flow Modeling**: Architecture supporting Generative Adversarial Networks (GANs) and domain randomization to synthesize realistic, non-stationary traffic demand patterns, peak rush-hour bursts, and vehicle flow distributions.
-* **Stochastic Real-World Demand Generator (`simulation/realistic_traffic.py`)**: Simulates time-of-day demand curves (morning/evening rush hours, midday, night), random events (accidents, rain, road work, concert surges), directional imbalances, and $30\%$ stochastic volatility.
-* **Automated Map Ingestion (`simulation/generate_lucknow.py`)**: Automated Overpass API pipeline downloading OpenStreetMap (OSM) spatial data for cities (e.g., Lucknow), converting via SUMO `netconvert`, and building dynamic route files via `randomTrips`.
+### ⚖️ 2. Production Multi-Factor Reward Calculator ([`rl/reward_function.py`](rl/reward_function.py))
+* **Exponential Anti-Starvation Penalty**: Penalizes wait times exceeding 60 to 90 seconds exponentially ($-8.0 \times \text{excess}^{1.3}$), ensuring no vehicle is stranded indefinitely.
+* **Emergency Vehicle Preemption (EVP)**: $+100.0$ bonus for immediate emergency vehicle clearance and $-200.0$ penalty if delayed.
+* **Green-Wave Coordination**: $+3.0$ bonus when adjacent intersections synchronize green phases along major arterial corridors.
+* **Max-Pressure Stabilization**: Integrates pressure differentials between upstream and downstream queues to stabilize reinforcement learning convergence.
 
-### ⚖️ 3. Multi-Factor Production Reward Calculator (`rl/reward_function.py`)
-* **Exponential Anti-Starvation Penalty**: Penalizes wait times exceeding 60 seconds exponentially ($-8.0 \times \text{excess}^{1.3}$), ensuring no vehicle is stranded indefinitely.
-* **Emergency Vehicle Preemption**: $+100$ bonus for immediate emergency vehicle clearance and $-200$ penalty if emergency vehicles are delayed.
-* **Surtrac-Class Green-Wave Coordination**: $+3.0$ arterial alignment bonus when adjacent junctions synchronize green phases along major corridors.
-* **Pressure & Queue Stabilization**: Integrates Max-Pressure queue differentials to stabilize PPO learning convergence.
-
-### 🛡️ 4. Deterministic Failsafe Engine & Hardware Integration
-* **NTCIP 1202 Standard Controller (`deployment/controller.py`)**: Native SNMP communication implementing NTCIP 1202 OIDs (`phaseControlGroupHold`, `phaseControlGroupForceOff`, `phaseStatusGroupGreen`) for direct hardware interfacing with Siemens, Econolite, and Yunex traffic signal cabinets.
+### 🛡️ 3. Deterministic Failsafe Engine & Hardware Integration
+* **NTCIP 1202 Standard Controller ([`deployment/controller.py`](deployment/controller.py))**: Native SNMP communication implementing NTCIP 1202 OIDs (`phaseControlGroupHold`, `phaseControlGroupForceOff`, `phaseStatusGroupGreen`) for direct hardware interfacing with Siemens, Econolite, and Yunex traffic signal cabinets.
 * **Shadow Mode Operations**: Run AI predictions in passive observation mode to build municipal trust prior to live actuation.
-* **Deterministic Watchdog (`deployment/failsafe.py`)**: Hardware safety layer evaluating inference latency ($<0.5\text{s}$), queue capacity, max wait thresholds ($>120\text{s}$), and heartbeat timeouts ($2.0\text{s}$) to transition between `NORMAL`, `FALLBACK_SOFT` (fixed-timer), and `FALLBACK_HARD` (flashing hardware mode).
+* **Deterministic Watchdog ([`deployment/failsafe.py`](deployment/failsafe.py))**: Hardware safety layer evaluating inference latency ($<0.5\text{s}$), queue capacity, max wait thresholds ($>120\text{s}$), and heartbeat timeouts ($2.0\text{s}$) to transition between `NORMAL`, `FALLBACK_SOFT` (fixed-timer), and `FALLBACK_HARD` (flashing hardware mode).
 
-### 🔍 5. Explainable AI (XAI) Engine (`training/xai_engine.py`)
-* **Natural Language Feature Attribution**: Converts high-dimensional observation tensors into readable explanations (e.g., *"Starvation risk: Vehicles on West approach waiting > 102s"*).
-* **Liability & Audit Reports**: Generates priority-level summaries (`NORMAL`, `HIGH`, `CRITICAL`) for municipal engineers and safety compliance audits.
+### 🛰️ 4. Sentinel: Multi-Frame ANPR & Consensus Voting ([`sentinel/alpr/`](sentinel/alpr/))
+* **Multi-Frame Consensus OCR Voter ([`sentinel/alpr/voter.py`](sentinel/alpr/voter.py))**: Denoises optical plate reads across rolling video frames (`VOTE_WINDOW = 3`) to eliminate single-frame camera noise.
+* **RapidFuzz Substitution Tolerance**: Uses fuzzy character token matching to resolve common Indian license plate OCR confusion pairs (`0/D`, `1/I`, `8/B`, `5/S`).
 
-### 📊 6. Web Dashboards & 3D Network Visualizer (`webapp/`)
-* **FastAPI + Async Redis Backend (`webapp/main.py`, `webapp/dashboard_backend.py`)**: Asynchronous WebSocket streaming (`/ws/live`, `/ws/telemetry`) broadcasting live simulation tick metrics.
-* **Interactive 2D Monitoring Dashboard**: View live KPI meters, queue states, active failsafe events, and manually override intersection signal phases.
-* **3D React + Three.js Graph Dashboard (`webapp/3d-dashboard/`)**: Interactive 3D visualization rendering GNN graph nodes, dynamic traffic edges, signal states, and particle effect flows.
+### 🗺️ 5. Spatial-Temporal Trajectory Tracking & Road Snapping ([`sentinel/tracker/`](sentinel/tracker/))
+* **Physical Road Snapping ([`sentinel/tracker/road_snapper.py`](sentinel/tracker/road_snapper.py))**: Rather than rendering straight lines between camera checkpoints, Sentinel traverses the SUMO physical edge graph to extract exact polyline geometries (`GeoJSON LineString`).
+* **Kinematic Plausibility Watchdog**: Verifies transition velocity between sequential sightings ($v \le 30 \text{ m/s}$), immediately flagging cloned plates or sensor teleportation anomalies.
+* **Persistent Trajectory Store ([`sentinel/tracker/trajectory_store.py`](sentinel/tracker/trajectory_store.py))**: Thread-safe SQLite backend (`traces.db`) storing sightings, active trajectories, and real-time Origin-Destination (O-D) mobility matrices.
 
-### 🛰️ 7. Sentinel: City-Wide ANPR Trajectory Tracking & Traffic Intercept (`sentinel/`)
-* **SIH26127 / Bharat Electronics Limited (BEL)**: Autonomous urban surveillance and traffic intelligence layer operating alongside Intelli-Light 3.0.
-* **Multi-Frame Consensus OCR Voter (`sentinel/alpr/voter.py`)**: Denoises optical plate reads across rolling video frames with RapidFuzz substitution tolerance (`0/D`, `1/I`, `8/B`).
-* **Spatial-Temporal Trajectory Reconstruction (`sentinel/tracker/`)**: Reconstructs continuous, road-snapped vehicle paths (`road_snapper.py`) with kinematic plausibility checks to detect impossible hops or cloned plates.
-* **GNN Congestion-Aware Anomaly Engine (`sentinel/anomaly/`)**: Cross-references route deviations with Intelli-Light's live queue lengths to distinguish traffic avoidance from suspicious evasion.
-* **Tactical Traffic Intercept Orchestrator (`sentinel/intercept/`)**: Dynamically manipulates downstream signals via NTCIP failsafe watchdog to box in suspects using organic traffic buildup, with emergency vehicle priority and SHA-256 hash-chained audit logging.
-* **Turnkey Hackathon Demo**: Execute `python main.py sentinel-demo` or start the live GIS map via `python main.py sentinel-web`.
-* **Architecture Whitepaper**: See [`docs/SENTINEL_SIH26127_ARCHITECTURE.md`](docs/SENTINEL_SIH26127_ARCHITECTURE.md).
+### 🔍 6. GNN Congestion-Aware Anomaly Engine ([`sentinel/anomaly/`](sentinel/anomaly/))
+Traditional surveillance systems flag any deviation from a vehicle's shortest path as suspicious, leading to false alarms during rush hours when commuters divert around traffic jams. Sentinel cross-references route deviations with **Intelli-Light's live GNN congestion telemetry**:
+$$\text{Detour Justification} = f(\text{Queue}_{\text{bypassed}}, \text{Pressure}_{\text{bypassed}})$$
+$$\text{Adjusted Detour Score} = \text{Deviation Ratio} \times (1.0 - \text{Detour Justification})$$
+* **Traffic Jam Bypass**: If an intersection with a queue $\ge 25$ vehicles is bypassed, the detour is recognized as rational commute avoidance ($\text{Score} = 0.0$).
+* **Suspicious Evasion**: If a driver takes a circuitous detour around completely empty roads ($\text{Queue} \le 3$), Sentinel detects the evasion and raises a threat alarm ($\text{Score} > 0.65$).
 
----
-
-## 🏗️ System Architecture
-
-```
-               +----------------------------------+
-               |  OpenStreetMap / Overpass API   |
-               +----------------------------------+
-                                |
-                                v
-               +----------------------------------+
-               |   SUMO Network & Simulation      |
-               |  (Lucknow / Random Grid Networks)|
-               +----------------------------------+
-                                |
-                                v
-               +----------------------------------+
-               | Generative Traffic Generator     |
-               | (GAN / Stochastic Demand Curves) |
-               +----------------------------------+
-                                |
-                                v
-    +--------------------------------------------------------+
-    |               Perception & Prediction                  |
-    |      (Vehicle Detection, Queue & Flow Forecasting)     |
-    +--------------------------------------------------------+
-                                |
-                                v
-    +--------------------------------------------------------+
-    |             GNN & ST-MARL Policy Engine                |
-    |      (PyTorch GCN / Graph Attention + LSTM Memory)     |
-    +--------------------------------------------------------+
-                                |
-                                v
-    +--------------------------------------------------------+
-    |           Deterministic Failsafe Watchdog             |
-    |   (Latency, Starvation & Latency Hard-Boundary Checks) |
-    +--------------------------------------------------------+
-            |                                    |
-            v                                    v
-+-----------------------+            +-----------------------+
-|  NTCIP 1202 Cabinet   |            | Live Web Dashboards   |
-| (SNMP Physical TLC)   |            | (2D & 3D Three.js WS) |
-+-----------------------+            +-----------------------+
-```
+### 🛑 7. Tactical Traffic Intercept Orchestrator ([`sentinel/intercept/`](sentinel/intercept/))
+When an authorized operator authorizes an intercept:
+1. **Markov Path Predictor ([`sentinel/intercept/predictor.py`](sentinel/intercept/predictor.py))**: Forecasts downstream candidate escape intersections based on network topology transitions and vehicle heading.
+2. **Tactical Guidance Bridge ([`sentinel/intercept/tactical_bridge.py`](sentinel/intercept/tactical_bridge.py))**: Progressively transitions through tactical stages (`METERING`, `CHOKE`, `FUNNEL`, `CONTAINMENT`) to kinematically slow down the suspect using natural vehicle queues rather than sudden software stops.
+3. **Emergency Preemption Bridge ([`sentinel/intercept/failsafe_bridge.py`](sentinel/intercept/failsafe_bridge.py))**: Automatically suspends intercept overrides if an emergency vehicle (ambulance or fire) is present, enforces pedestrian minimum clearance intervals ($\ge 15\text{s}$), and auto-expires intercept missions after their TTL ($600\text{s}$).
+4. **Tamper-Evident SHA-256 Audit Trail ([`sentinel/data/audit.jsonl`](sentinel/data/audit.jsonl))**: Every tracking activation, alert, and signal override writes an append-only JSON record with cryptographic hash chaining ($H_i = \text{SHA256}(D_i \parallel H_{i-1})$) for legal non-repudiation.
 
 ---
 
@@ -107,176 +113,179 @@ To bridge the gap between AI research and physical road deployment, Intelli-Ligh
 
 ```text
 Intelli-Light/
-├── main.py                     # Primary CLI entrypoint for GNN & ST-MARL tasks
+├── main.py                     # Unified CLI entrypoint for all Intelli-Light & Sentinel tasks
+├── run_gui.bat                 # One-click launcher for Sentinel + Intelli-Light interactive GUI
+├── pinaka.json                 # Project configuration metadata
+├── requirements.txt            # System dependencies
+│
 ├── configs/                    # System configurations, signal timings, and parameters
+│
 ├── deployment/                 # Physical hardware deployment and safety guardrails
 │   ├── controller.py           # NTCIP 1202 SNMP hardware bridge & Shadow Mode
-│   └── failsafe.py             # Watchdog state machine (NORMAL / SOFT / HARD fallback)
-├── docs/                       # Architectural specs and GNN manifesto
-│   └── INTELLI_LIGHT_3_GNN_MANIFESTO.md
+│   └── failsafe.py             # FailsafeWatchdog state machine (NORMAL / SOFT / HARD fallback)
+│
+├── docs/                       # Technical whitepapers and architectural diagrams
+│   ├── SYSTEM_ARCHITECTURE_AND_DIAGRAMS.md # 10 comprehensive Mermaid architecture diagrams
+│   ├── SENTINEL_SIH26127_ARCHITECTURE.md   # SIH26127 BEL compliance whitepaper
+│   └── INTELLI_LIGHT_3_GNN_MANIFESTO.md    # GNN & deterministic failsafe design manifesto
+│
 ├── models/                     # Deep Learning neural feature extractors
-│   ├── gnn_extractor.py        # PyTorch SimpleGCNLayer & BaseFeaturesExtractor
+│   ├── gnn_extractor.py        # PyTorch SimpleGCNLayer & GNNExtractor
 │   ├── st_marl_model.py        # Spatio-Temporal GAT + LSTM Feature Extractor
 │   └── override_log.py         # Logging and model override utilities
-├── perception/                 # Computer vision & vehicle detection pipeline
-├── prediction/                 # Traffic prediction and flow forecasting
+│
 ├── rl/                         # Gymnasium Environments & Reward logic
-│   ├── sumo_gnn_env.py         # SUMO Graph-based multi-agent environment
+│   ├── sumo_gnn_env.py         # SUMO Graph-based multi-agent environment (topology discovery)
 │   ├── multi_agent_env.py      # Multi-agent traffic corridor environment
-│   ├── reward_function.py      # Multi-factor production reward calculator
-│   ├── gnn_env.py              # Architecture prototype Gym env
-│   ├── real_world_env.py       # Real-world benchmark environment
-│   ├── sumo_gnn_randomized_env.py # Environment with domain randomization
-│   └── sumo_gnn_realistic_env.py  # Realistic traffic SUMO environment
-├── routes/                     # Generated route definitions
+│   ├── reward_function.py      # EnhancedRewardCalculator (starvation, EVP, green wave)
+│   ├── gnn_env.py              # Architecture prototype Gym environment
+│   └── sumo_gnn_randomized_env.py # Environment with domain randomization
+│
+├── sentinel/                   # Sentinel: City-Wide Surveillance & Intercept Engine
+│   ├── config.py               # Thresholds, timings, and configuration constants
+│   ├── demo.py                 # Turnkey 60-second command-line demonstration scenario
+│   ├── gui_demo.py             # Dual-viewport real-time SUMO-GUI interactive demonstration
+│   ├── intellilight_controller.py # Real-time adaptive Max-Pressure signal controller
+│   ├── registry.py             # FlaggedVehicleRegistry (SQLite watchlist & authorizations)
+│   ├── server.py               # FastAPI GIS surveillance server with live WebSockets
+│   ├── alpr/                   # Multi-frame consensus OCR voter & confusion tolerance
+│   ├── anomaly/                # Congestion-aware anomaly scorer & GNN telemetry bridge
+│   ├── data/                   # SQLite stores (registry.db, traces.db) and audit.jsonl
+│   ├── ingestion/              # Event bus and SUMO camera grid injectors
+│   ├── intercept/              # Intercept orchestrator, Markov predictor, and failsafe bridge
+│   ├── static/                 # GIS map web dashboard assets (Leaflet & HUD)
+│   ├── tests/                  # 82 automated pytest unit and integration tests
+│   └── tracker/                # Trajectory store, road snapper, and vehicle trace models
+│
 ├── simulation/                 # SUMO lifecycle, traffic & map generators
-│   ├── generate_lucknow.py     # Real Lucknow OpenStreetMap downloader & compiler
-│   ├── generate_random_map.py  # Synthetic network generator
-│   ├── generate_single_intersection.py
+│   ├── generate_lucknow.py     # OpenStreetMap downloader & compiler for Lucknow network
 │   ├── realistic_traffic.py    # Time-of-day demand & random traffic event generator
-│   ├── route_generator.py      # Vehicle trip & demand matrix builder
-│   └── sumo_env.py             # Core SUMO TraCI interface wrapper
+│   ├── sumo_env.py             # Core SUMO TraCI lifecycle wrapper
+│   └── lucknow_map/            # Lucknow network (.net.xml), routes (.rou.xml), and sumocfg
+│
 ├── training/                   # Model training, evaluation & explainability
 │   ├── baseline_controllers.py # Max-Pressure, Surtrac-Like & Fixed-Timer baselines
-│   ├── evaluation_engine.py    # Benchmark evaluation runner
-│   ├── metrics_calculator.py   # Traffic & environmental metrics calculator
+│   ├── evaluate_gnn.py         # GNN policy evaluation diagnostics
+│   ├── run_gnn_gui.py          # Standalone Intelli-Light SUMO GUI visualizer
 │   ├── train_gnn.py            # GNN model training script
-│   ├── train_gnn_randomized.py # Domain-randomized GNN training script
 │   ├── train_st_marl.py        # Spatio-Temporal MARL training script
-│   ├── run_gnn_gui.py          # SUMO GUI demonstration launcher
-│   └── xai_engine.py           # Explainable AI decision reasoning engine
-└── webapp/                     # Web dashboards & visualization tools
-    ├── main.py                 # FastAPI WebApp backend with WebSocket telemetry
-    ├── dashboard_backend.py    # Live SUMO simulation backend service
-    ├── static/                 # 2D Web Dashboard static assets
+│   └── xai_engine.py           # Explainable AI natural language reasoning engine
+│
+└── webapp/                     # Standalone Intelli-Light Web Dashboards
+    ├── main.py                 # FastAPI backend with async Redis WebSockets
+    ├── dashboard_backend.py    # Live SUMO simulation telemetry service
+    ├── static/                 # 2D Web Dashboard assets
     └── 3d-dashboard/           # Modern 3D React + Three.js Graph Visualizer
 ```
 
 ---
 
-## ⚡ Quick Start
+## ⚡ Quick Start & Execution Guide
 
 ### Prerequisites
-* **Python 3.10+**
-* **SUMO (Simulation of Urban MObility)**: Ensure `SUMO_HOME` environment variable is set.
-* **Redis**: Required for FastAPI async WebSocket pub/sub telemetry.
-* **Node.js & npm** (Optional, for 3D React Dashboard).
+* **Python 3.10+** (Tested on Python 3.13)
+* **Eclipse SUMO 1.20+**: Ensure `SUMO_HOME` environment variable is set (or use the built-in virtualenv SUMO binary).
 
 ### 1. Installation
-Clone the repository and install the dependencies:
-
-```bash
+```powershell
 git clone https://github.com/KshitizD07/demo_intellilight.git
 cd demo_intellilight
-pip install -r requirements.txt
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
 ---
 
-## 💻 Usage & Commands
+## 💻 Operating Modes & Demonstrations
 
-### 1. Unified CLI (`main.py`)
+### Mode 1: Interactive Unified Dual-View SUMO Demonstration (Recommended)
+Visualizes both Intelli-Light's adaptive Max-Pressure queue balancing and Sentinel's tactical red-wall intercept inside SUMO-GUI.
 
-Run training, testing, and GUI demonstration workflows:
+Run the pre-configured batch script:
+```powershell
+.\run_gui.bat
+```
+Or execute directly via CLI with custom traffic scale and step delay:
+```powershell
+.\venv\Scripts\python.exe main.py sentinel-gui --scale 5.0 --delay 400
+```
+* **View #0**: Global traffic overview centered at `(5580, 6400)` displaying dense 5x traffic and dynamically adapting traffic signals.
+* **View #1**: Dedicated Sentinel surveillance HUD tracking the suspect vehicle (`UP32XY9999` in bright red).
+* **Interactive Control**: Press **`[SPACE]`** or **`[R]`** in your terminal anytime to deploy the Red-Wall. Downstream signals switch to all-red, a civilian queue forms ahead, the suspect halts naturally under Krauss physics, the suspect is apprehended, and Intelli-Light clears the backlog.
+* **Performance Scorecard**: Automatically printed upon completion.
 
-```bash
-# Smoke test the SUMO GNN environment with random actions
-python main.py test-sumo-gnn
+---
 
-# Train the Graph Neural Network (GNN) model on randomized maps
-python main.py train-gnn
+### Mode 2: Standalone Intelli-Light Graphical Simulation (No Sentinel)
+Runs purely Intelli-Light's GNN graph-based environment with deterministic starvation failsafes on the Lucknow network with zero Sentinel involvement:
+```powershell
+.\venv\Scripts\python.exe main.py gnn-gui
+```
+*(Use the **Delay (ms)** input box in the SUMO-GUI toolbar to set playback speed to 200–400 ms).*
 
-# Train the Spatio-Temporal MARL (GAT + LSTM) model
-python main.py train-st-marl
+---
 
-# Launch the SUMO GUI GNN demonstration
-python main.py gnn-gui
+### Mode 3: Sentinel Turnkey 60-Second Command-Line Scenario
+Executes a fully automated, self-contained demonstration validating ANPR consensus voting, normal commute baseline, GNN congestion-adjusted detour anomaly detection, and red-wall intercept:
+```powershell
+.\venv\Scripts\python.exe main.py sentinel-demo
 ```
 
-### 2. Launch the Web App & Real-Time Dashboards
+---
 
-Start the FastAPI telemetry server and SUMO backend:
-
-```bash
-# Launch FastAPI telemetry backend
-uvicorn webapp.main:app --reload --port 8000
+### Mode 4: Sentinel Live Real-Time Web GIS Surveillance Dashboard
+Launches the Sentinel web intelligence dashboard with interactive Leaflet GIS mapping, live WebSocket feeds, route breadcrumbs, active intercepts, and Origin-Destination matrices:
+```powershell
+.\venv\Scripts\python.exe main.py sentinel-web --port 8888
 ```
+Open your browser at: **`http://localhost:8888`**
 
-Access the **2D Interactive Dashboard** at:
-`http://localhost:8000`
+---
 
-To launch the **3D React + Three.js Dashboard**:
-
-```bash
-cd webapp/3d-dashboard
-npm install
-npm run dev
+### Mode 5: Standalone Intelli-Light Web Telemetry Server
+Launches the standalone Intelli-Light FastAPI telemetry server:
+```powershell
+.\venv\Scripts\uvicorn.exe webapp.main:app --port 8000
 ```
+Open your browser at: **`http://localhost:8000`**
 
-### 3. Generate Real City Maps (Lucknow OSM)
+---
 
-Download and compile OpenStreetMap data for Lucknow:
+## 🧪 Automated Test Suite
 
-```bash
-python simulation/generate_lucknow.py
+Sentinel and Intelli-Light include a comprehensive pytest test suite covering the ALPR consensus voter, SQLite trajectory store, GNN telemetry bridge, failsafe watchdog bridge, tactical guidance bridge, and FastAPI servers.
+
+Run all tests:
+```powershell
+.\venv\Scripts\python.exe -m pytest sentinel/tests/ -v
 ```
+*Status: **82 passed**, 0 failed.*
 
 ---
 
 ## 📊 Baseline Benchmarks & Evaluation
 
-Intelli-Light includes built-in implementations of standard adaptive traffic control algorithms for rigorous benchmarking:
+Intelli-Light implements standard adaptive traffic control algorithms for benchmarking:
+1. **Max-Pressure Controller ([`training/baseline_controllers.py`](training/baseline_controllers.py))**: Industry-standard Varaiya (2013) algorithm serving approaches with maximum queue differential pressure.
+2. **Surtrac-Like Controller**: Schedule-driven cluster discharge algorithm allocating green time based on approaching vehicle cluster estimates.
+3. **Fixed-Timer Controller**: Traditional static cycle baseline.
 
-1. **Max-Pressure Controller (`MaxPressureController`)**:
-   * Industry-standard Varaiya (2013) algorithm.
-   * Dynamically serves approaches with maximum queue differential pressure.
-2. **Surtrac-Like Controller (`SurtracLikeController`)**:
-   * Schedule-driven cluster discharge algorithm.
-   * Allocates green duration based on approaching vehicle cluster estimates.
-3. **Fixed-Timer Controller (`FixedTimerController`)**:
-   * Traditional static green schedule baseline.
-
-To evaluate models and compare against baselines:
-
-```bash
-python -m training.evaluate_gnn
+To evaluate GNN policies against baselines:
+```powershell
+.\venv\Scripts\python.exe -m training.evaluate_gnn
 ```
 
 ---
 
-## 🛡️ Physical Deployment & Safety Testing
+## 📖 Architectural Whitepapers & Documentation
 
-### Testing NTCIP 1202 SNMP Hardware Bridge
-
-Test physical signal cabinet communication in **Shadow Mode** (non-actuating log mode):
-
-```python
-from deployment.controller import ShadowController
-
-# Initialize shadow bridge to cabinet IP
-controller = ShadowController(ip_address="192.168.1.100")
-
-# Simulate RL action execution (Phase 1 for 15 seconds)
-controller.apply_rl_decision(phase_idx=0, duration=15)
-```
-
-### Failsafe Watchdog Verification
-
-```python
-from deployment.failsafe import FailsafeWatchdog
-
-watchdog = FailsafeWatchdog(max_inference_latency=0.5, max_wait_threshold=120)
-
-# Validate action duration prior to hardware execution
-safe_duration = watchdog.validate_action(
-    duration=20, 
-    inference_latency=0.08, 
-    obs_snapshot={"queues": [10, 12, 8, 15], "waits": [30, 25, 40, 105]}
-)
-```
+For in-depth theoretical specifications, refer to the documentation in [`docs/`](docs/):
+* [`docs/SYSTEM_ARCHITECTURE_AND_DIAGRAMS.md`](docs/SYSTEM_ARCHITECTURE_AND_DIAGRAMS.md): 10 detailed Mermaid diagrams covering system design, GNN inference, ANPR pipeline, anomaly detection, intercept sequence, state machines, and entity schemas.
+* [`docs/SENTINEL_SIH26127_ARCHITECTURE.md`](docs/SENTINEL_SIH26127_ARCHITECTURE.md): Complete SIH26127 / Bharat Electronics Limited compliance whitepaper.
+* [`docs/INTELLI_LIGHT_3_GNN_MANIFESTO.md`](docs/INTELLI_LIGHT_3_GNN_MANIFESTO.md): GNN design rationale and deterministic failsafe safety manifesto.
 
 ---
 
-## 📜 License
+## 📜 License & Attribution
 
-This project is licensed under the terms of the [`LICENSE`](LICENSE) file.
+Designed and architected by **KSHITIZ** (Pinaka Studios).  
+Licensed under the terms of the [`LICENSE`](LICENSE) file.
