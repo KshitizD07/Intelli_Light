@@ -69,6 +69,7 @@ def run_sentinel_gui(args):
         delay_ms=args.delay,
         max_steps=args.max_steps,
         auto_intercept_step=args.intercept_step,
+        manual_mode=not getattr(args, "auto", False),
     )
 
 
@@ -125,8 +126,9 @@ if __name__ == "__main__":
     sentinel_gui_p.add_argument("--plate", default="UP32XY9999", help="Target license plate")
     sentinel_gui_p.add_argument("--no-gui", action="store_true", help="Run without GUI (headless)")
     sentinel_gui_p.add_argument("--delay", type=int, default=80, help="Delay per step in ms")
-    sentinel_gui_p.add_argument("--max-steps", type=int, default=500, help="Maximum steps")
-    sentinel_gui_p.add_argument("--intercept-step", type=int, default=15, help="Step to authorize intercept")
+    sentinel_gui_p.add_argument("--max-steps", type=int, default=800, help="Maximum steps")
+    sentinel_gui_p.add_argument("--intercept-step", type=int, default=35, help="Step to authorize intercept")
+    sentinel_gui_p.add_argument("--auto", action="store_true", help="Auto-trigger intercept instead of waiting for manual [SPACE]/[R]")
     sentinel_gui_p.set_defaults(func=run_sentinel_gui)
 
     args = parser.parse_args()

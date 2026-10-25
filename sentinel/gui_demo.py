@@ -5,14 +5,16 @@ Sentinel & Intelli-Light Unified Real-Time SUMO GUI Demonstration
 Visualizes physical vehicle dynamics, ANPR camera triggers, and
 tactical green-metering/red-wall signal regulation in real-time inside SUMO-GUI.
 
-Demonstrates:
-  1. Suspect vehicle highlighted in bright red (UP32XY9999).
-  2. Civilian traffic flowing under Intelli-Light regulation.
-  3. Continuous optical ANPR detection as target passes checkpoints.
-  4. Real-time tactical signal regulation (METERING -> CHOKE -> CONTAINMENT).
-  5. Smooth kinematic deceleration behind downstream civilian queues,
-     bringing the suspect to a safe halt without reckless barricades.
-  6. Strict safety invariants (pedestrian clearance, max red hold limit).
+Features:
+  1. Dual Viewports:
+     - View #0: Global traffic flow overview (Intelli-Light adaptive civilian network).
+     - View #1: Sentinel Surveillance Camera (auto-tracking flagged suspect).
+  2. Manual Trigger:
+     - Press [SPACE] or [R] in this terminal anytime to deploy the Red-Wall.
+  3. Option A (Apprehend & Disappear):
+     - Suspect is boxed in behind the civilian queue at the red signal.
+     - Once halted, suspect is apprehended and removed from the network.
+     - Red-wall holds release back to Intelli-Light green cycles, and civilian traffic resumes!
 """
 
 import os
@@ -39,7 +41,6 @@ from sentinel.tracker.tracker import TrackerManager
 from sentinel.tracker.road_snapper import RoadSnapper
 from sentinel.ingestion.sumo_injector import CameraGrid
 
-
 SUMO_NET_FILE = os.path.join(project_root, "simulation", "lucknow_map", "lucknow.net.xml")
 
 
@@ -47,13 +48,11 @@ def find_sumo_binary(use_gui: bool = True) -> str:
     """Finds sumo or sumo-gui binary across SUMO_HOME, eclipse-sumo, or PATH."""
     target_name = "sumo-gui" if use_gui else "sumo"
 
-    # 1. Check if eclipse-sumo installed binaries in Python Scripts or Lib
     try:
         import sumolib
         binary = sumolib.checkBinary(target_name)
         if os.path.isabs(binary) and os.path.exists(binary):
             return binary
-        # On Windows, sumolib might return 'sumo-gui', test if it exists in PATH
         import shutil
         found = shutil.which(target_name)
         if found:
@@ -61,19 +60,16 @@ def find_sumo_binary(use_gui: bool = True) -> str:
     except Exception:
         pass
 
-    # 2. Check virtualenv Scripts directory
     venv_bin = os.path.join(sys.prefix, "Scripts", f"{target_name}.exe")
     if os.path.exists(venv_bin):
         return venv_bin
 
-    # 3. Check SUMO_HOME
     sumo_home = os.environ.get("SUMO_HOME", "")
     if sumo_home:
         cand = os.path.join(sumo_home, "bin", f"{target_name}.exe")
         if os.path.exists(cand):
             return cand
 
-    # Fallback to non-gui if gui binary not found
     if use_gui:
         print("[SENTINEL-GUI] 'sumo-gui' binary not found directly, falling back to 'sumo' binary...")
         return find_sumo_binary(use_gui=False)
@@ -81,28 +77,44 @@ def find_sumo_binary(use_gui: bool = True) -> str:
     return "sumo"
 
 
+def check_manual_trigger() -> bool:
+    """Non-blocking keyboard check for Space, R, or Enter on Windows/POSIX."""
+    try:
+        import msvcrt
+        while msvcrt.kbhit():
+            ch = msvcrt.getch()
+            if ch in (b' ', b'r', b'R', b'\r'):
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def run_gui_scenario(
     cfg_file: str,
     target_plate: str = "UP32XY9999",
     use_gui: bool = True,
-    delay_ms: int = 150,
-    max_steps: int = 600,
-    auto_intercept_step: int = 25,
+    delay_ms: int = 180,
+    max_steps: int = 800,
+    auto_intercept_step: int = 35,
+    manual_mode: bool = True,
 ):
     """
-    Executes the interactive SUMO GUI scenario.
+    Executes the interactive SUMO GUI scenario with Dual Viewports, Manual Red-Wall, and Option A.
     """
     import traci
 
     binary = find_sumo_binary(use_gui=use_gui)
-    print("=" * 70)
-    print(" SENTINEL + INTELLI-LIGHT REAL-TIME PHYSICAL DEMONSTRATION")
-    print("=" * 70)
-    print(f"SUMO Binary:  {binary}")
-    print(f"Config File:  {cfg_file}")
-    print(f"Target Plate: {target_plate} (Flagged Suspect)")
-    print(f"Step Delay:   {delay_ms} ms")
-    print("=" * 70)
+    print("=" * 72)
+    print(" SENTINEL + INTELLI-LIGHT UNIFIED PHYSICAL DEMONSTRATION")
+    print("=" * 72)
+    print(f"SUMO Binary:    {binary}")
+    print(f"Config File:    {cfg_file}")
+    print(f"Target Plate:   {target_plate} (Flagged Threat)")
+    print(f"Step Delay:     {delay_ms} ms")
+    print(f"Controls:       Press [SPACE] or [R] in this terminal to DEPLOY RED-WALL")
+    print(f"Post-Action:    Option A (Apprehend, Remove Suspect & Resume Flow)")
+    print("=" * 72)
 
     # Initialize Sentinel Infrastructure
     registry = FlaggedVehicleRegistry()
@@ -121,7 +133,6 @@ def run_gui_scenario(
     camera_grid = CameraGrid(SUMO_NET_FILE)
     tracker = TrackerManager(bus=bus, registry=registry, camera_grid=camera_grid)
 
-    # SUMO Execution Command
     cmd = [
         binary,
         "-c", cfg_file,
@@ -142,12 +153,16 @@ def run_gui_scenario(
         return
 
     print("\n[INFO] TraCI connection established. Simulation running!")
-    print("[INFO] Setting up camera tracking and vehicle styles...\n")
+    print("[INFO] Initializing Dual Viewports: Global Traffic Flow & Surveillance HUD...\n")
 
-    # Pick or designate suspect vehicle
     target_veh_id = "0"
     target_tls_id = None
     intercept_active = False
+    surveillance_locked = False
+    apprehended = False
+    stopped_count = 0
+    post_apprehension_steps = 0
+    tls_to_regulate = []
 
     try:
         step = 0
@@ -156,14 +171,37 @@ def run_gui_scenario(
             step += 1
 
             active_vehs = traci.vehicle.getIDList()
-            if not active_vehs:
+            if not active_vehs and not apprehended:
                 continue
 
-            # Ensure suspect vehicle ID is active or pick lead vehicle
-            if target_veh_id not in active_vehs:
-                target_veh_id = active_vehs[0]
+            # Check if target suspect is on the network
+            target_present = target_veh_id in active_vehs
 
-            # Style vehicles: Suspect = Bright Red, Civilians = Distinct Colors
+            # If target vehicle was removed after apprehension, continue normal flow demonstration
+            if apprehended:
+                post_apprehension_steps += 1
+                if post_apprehension_steps % 5 == 0:
+                    print(f"Step {step:03d} | Normal Flow Resumed | Active Civilian Vehicles: {len(active_vehs)}")
+                if post_apprehension_steps >= 30:
+                    print("\n" + "=" * 72)
+                    print(" [DEMONSTRATION COMPLETE] Suspect removed, traffic fully normalized.")
+                    print(" Press ENTER in this console to close the SUMO window...")
+                    print("=" * 72 + "\n")
+                    try:
+                        input()
+                    except Exception:
+                        time.sleep(10.0)
+                    break
+                if delay_ms > 0:
+                    time.sleep(delay_ms / 1000.0)
+                continue
+
+            # Ensure valid suspect vehicle
+            if not target_present:
+                target_veh_id = active_vehs[0]
+                target_present = True
+
+            # Style vehicles: Suspect = Bright Red, Civilians = Cyan/White/Yellow
             for vid in active_vehs:
                 if vid == target_veh_id:
                     traci.vehicle.setColor(vid, (255, 20, 20, 255))
@@ -171,23 +209,15 @@ def run_gui_scenario(
                     try:
                         v_num = int(vid)
                         if v_num % 3 == 0:
-                            traci.vehicle.setColor(vid, (56, 189, 248, 255))   # Cyan civilian
+                            traci.vehicle.setColor(vid, (56, 189, 248, 255))   # Cyan
                         elif v_num % 3 == 1:
-                            traci.vehicle.setColor(vid, (241, 245, 249, 255))  # White civilian
+                            traci.vehicle.setColor(vid, (241, 245, 249, 255))  # White
                         else:
-                            traci.vehicle.setColor(vid, (250, 204, 21, 255))   # Yellow civilian
+                            traci.vehicle.setColor(vid, (250, 204, 21, 255))   # Yellow
                     except ValueError:
                         traci.vehicle.setColor(vid, (148, 163, 184, 255))
 
-            if use_gui and step <= 2:
-                try:
-                    traci.gui.setSchema("View #0", "real world")
-                    traci.gui.trackVehicle("View #0", target_veh_id)
-                    traci.gui.setZoom("View #0", 2800.0)
-                except Exception:
-                    pass
-
-            # Update suspect telemetry
+            # Suspect telemetry
             pos = traci.vehicle.getPosition(target_veh_id)
             speed = traci.vehicle.getSpeed(target_veh_id)
             lane_id = traci.vehicle.getLaneID(target_veh_id)
@@ -196,24 +226,60 @@ def run_gui_scenario(
             lane_pos = traci.vehicle.getLanePosition(target_veh_id) if lane_id else 50.0
             dist_to_end = max(0.0, lane_len - lane_pos)
 
-            # Auto-trigger Tactical Intercept at specified step
-            if step >= auto_intercept_step and not intercept_active:
-                intercept_active = True
-                raw_junc = traci.edge.getToJunction(edge_id) if edge_id and not str(edge_id).startswith(":") else "J_AHEAD"
-                current_junc = str(raw_junc) if raw_junc is not None else "J_AHEAD"
-                orchestrator.request_intercept(
-                    plate=target_plate,
-                    current_junction=current_junc,
-                    authorized_by="OPERATOR_KSHITIZ",
-                    reason="Pursuit of flagged armed suspect",
-                )
-                print("\n" + "#" * 68)
-                print(f"[SENTINEL INTERCEPT AUTHORIZED] Target: {target_plate}")
-                print(f"Junction Ahead: {current_junc} | Operator: KSHITIZ")
-                print("Initiating Progressive Green-Metering & Tactical Choke Directives...")
-                print("#" * 68 + "\n")
+            # Setup Dual Viewports in GUI
+            if use_gui and not surveillance_locked:
+                try:
+                    # View #0: Overview of city traffic corridor
+                    traci.gui.setSchema("View #0", "real world")
+                    traci.gui.setZoom("View #0", 1200.0)
 
-            # Check nearby Traffic Light (TLS) ahead on this route
+                    # View #1: Dedicated Sentinel Surveillance View
+                    existing_views = traci.gui.getIDList()
+                    surveillance_view = "View #1"
+                    if surveillance_view not in existing_views:
+                        traci.gui.addView(surveillance_view, "real world")
+
+                    traci.gui.setSchema(surveillance_view, "real world")
+                    traci.gui.trackVehicle(surveillance_view, target_veh_id)
+                    traci.gui.setZoom(surveillance_view, 3800.0)
+
+                    # Add tactical red marker POI
+                    try:
+                        traci.poi.add("TARGET_LOCK", pos[0], pos[1], (255, 20, 20, 255), "SUSPECT_PIN", layer=200, width=6, height=6)
+                    except Exception:
+                        pass
+
+                    surveillance_locked = True
+                except Exception:
+                    pass
+
+            # Update tactical marker position
+            if surveillance_locked:
+                try:
+                    traci.poi.setPosition("TARGET_LOCK", pos[0], pos[1])
+                except Exception:
+                    pass
+
+            # Check manual trigger from terminal keypress
+            trigger_now = check_manual_trigger()
+            if not intercept_active:
+                if trigger_now or (not manual_mode and step >= auto_intercept_step):
+                    intercept_active = True
+                    raw_junc = traci.edge.getToJunction(edge_id) if edge_id and not str(edge_id).startswith(":") else "J_AHEAD"
+                    current_junc = str(raw_junc) if raw_junc is not None else "J_AHEAD"
+                    orchestrator.request_intercept(
+                        plate=target_plate,
+                        current_junction=current_junc,
+                        authorized_by="OPERATOR_KSHITIZ",
+                        reason="Manual Red-Wall Authorization",
+                    )
+                    print("\n" + "#" * 72)
+                    print(f" [SENTINEL RED-WALL ACTIVATED] Target: {target_plate}")
+                    print(f" Target Junction: {current_junc} | Authorized by: OPERATOR_KSHITIZ")
+                    print(" Downstream signals switched to ALL-RED. Controlled queue forming ahead...")
+                    print("#" * 72 + "\n")
+
+            # Check next Traffic Light ahead
             next_tls_list = traci.vehicle.getNextTLS(target_veh_id)
             dist_to_tls = dist_to_end
             if next_tls_list and len(next_tls_list) > 0:
@@ -221,10 +287,10 @@ def run_gui_scenario(
                 target_tls_id = tls_info[0]
                 dist_to_tls = tls_info[2]
 
-            # Update Sentinel Tactical Guidance Bridge
+            # Signal regulation and kinematic guidance
             if intercept_active:
                 overrides = orchestrator.get_signal_overrides()
-                active_junc = next(iter(overrides.keys())) if overrides else current_junc
+                active_junc = next(iter(overrides.keys())) if overrides else "J_AHEAD"
                 directive = tactical_bridge.get_directive(
                     junction_id=active_junc,
                     plate=target_plate,
@@ -235,48 +301,63 @@ def run_gui_scenario(
                     stage = directive.stage
                     target_v = directive.target_speed_mps
 
-                    # Regulate SUMO Traffic Light physically
                     tls_to_regulate = [target_tls_id] if target_tls_id and target_tls_id in traci.trafficlight.getIDList() else list(traci.trafficlight.getIDList()[:3])
+
                     if stage in (TacticalStage.CHOKE, TacticalStage.CONTAINMENT):
                         for tid in tls_to_regulate:
                             state = traci.trafficlight.getRedYellowGreenState(tid)
                             all_red = "r" * len(state)
                             traci.trafficlight.setRedYellowGreenState(tid, all_red)
-                        # Kinematic car-following slowdown
                         traci.vehicle.slowDown(target_veh_id, target_v, 1.5)
                     elif stage == TacticalStage.METERING:
-                        # Apply green metering: smooth deceleration towards downstream queue
                         traci.vehicle.slowDown(target_veh_id, target_v, 2.0)
 
-                    # Status logging HUD
                     kmh = speed * 3.6
                     print(
-                        f"Step {step:03d} | TLS: {dist_to_tls:5.1f}m | "
+                        f"Step {step:03d} | TLS Dist: {dist_to_tls:5.1f}m | "
                         f"Speed: {speed:4.1f} m/s ({kmh:4.1f} km/h) | "
-                        f"Stage: {stage.name:11s} | "
-                        f"Regulated Target: {target_v:4.1f} m/s"
+                        f"Stage: {stage.name:11s} | Regulated Target: {target_v:4.1f} m/s"
                     )
 
+                    # Option A: Detect vehicle stop behind queue -> Apprehend and remove!
                     if stage == TacticalStage.CONTAINMENT and speed < 0.2:
-                        print("\n" + "=" * 68)
-                        print(f"[MISSION SUCCESS] Target '{target_plate}' SAFELY CONTAINED & HALTED!")
-                        print(f"Suspect boxed in behind controlled civilian queue at Step {step}.")
-                        print("All safety invariants preserved: 0 pedestrian conflicts, 0 collisions.")
-                        print("=" * 68 + "\n")
-                        print(">>> SIMULATION PAUSED. Inspect the vehicles and signals in the GUI.")
-                        print(">>> Press ENTER in this console when ready to close...")
-                        try:
-                            input()
-                        except Exception:
-                            time.sleep(15.0)
-                        break
+                        stopped_count += 1
+                        if stopped_count >= 3:
+                            apprehended = True
+                            print("\n" + "=" * 72)
+                            print(f" [APPREHENSION SUCCESSFUL] Target '{target_plate}' Contained by Tactical Units!")
+                            print(" Suspect halted behind civilian queue. Removing vehicle from network.")
+                            print(" Releasing Red-Wall hold: Signals restored to Intelli-Light green cycle...")
+                            print("=" * 72 + "\n")
+
+                            # Remove vehicle and marker (Option A)
+                            try:
+                                traci.vehicle.remove(target_veh_id)
+                            except Exception:
+                                pass
+                            try:
+                                traci.poi.remove("TARGET_LOCK")
+                            except Exception:
+                                pass
+
+                            # Cancel intercept and release traffic lights back to normal program
+                            orchestrator.cancel_intercept(target_plate, cancelled_by="OPERATOR_KSHITIZ")
+                            for tid in tls_to_regulate:
+                                try:
+                                    traci.trafficlight.setProgram(tid, "0")
+                                except Exception:
+                                    pass
+
+                            print("[TRAFFIC RESUMED] Downstream signals green. Civilian queue moving smoothly.\n")
+                    else:
+                        stopped_count = 0
             else:
                 kmh = speed * 3.6
-                print(f"Step {step:03d} | Normal Flow | Suspect Speed: {speed:4.1f} m/s ({kmh:4.1f} km/h) | Approaching Checkpoint...")
+                print(
+                    f"Step {step:03d} | Normal Flow | Suspect: {speed:4.1f} m/s ({kmh:4.1f} km/h) | "
+                    f">>> Press [SPACE] or [R] to DEPLOY RED-WALL <<<"
+                )
 
-            # Introduce configured delay for visual smoothness in GUI
-            if delay_ms > 0:
-                time.sleep(delay_ms / 1000.0)
             if delay_ms > 0:
                 time.sleep(delay_ms / 1000.0)
 
@@ -292,7 +373,7 @@ def run_gui_scenario(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Sentinel + Intelli-Light Real-Time TraCI Scenario Visualizer"
+        description="Sentinel + Intelli-Light Dual-View TraCI Scenario Visualizer"
     )
     parser.add_argument(
         "--cfg",
@@ -312,20 +393,25 @@ def main():
     parser.add_argument(
         "--delay",
         type=int,
-        default=80,
-        help="Delay per step in milliseconds for visual demonstration",
+        default=180,
+        help="Delay per step in milliseconds for visual clarity",
     )
     parser.add_argument(
         "--max-steps",
         type=int,
-        default=500,
+        default=800,
         help="Maximum simulation steps to run",
     )
     parser.add_argument(
         "--intercept-step",
         type=int,
-        default=15,
-        help="Simulation step at which Red-Wall intercept is authorized",
+        default=35,
+        help="Fallback step at which Red-Wall intercept is authorized if not triggered manually",
+    )
+    parser.add_argument(
+        "--auto",
+        action="store_true",
+        help="Auto-trigger intercept at --intercept-step without waiting for manual keypress",
     )
 
     args = parser.parse_args()
@@ -336,6 +422,7 @@ def main():
         delay_ms=args.delay,
         max_steps=args.max_steps,
         auto_intercept_step=args.intercept_step,
+        manual_mode=not args.auto,
     )
 
 

@@ -40,6 +40,7 @@ def test_gui_scenario_with_mock_traci():
             delay_ms=0,
             max_steps=5,
             auto_intercept_step=2,
+            manual_mode=False,
         )
 
         # Assert target vehicle was colored bright red
@@ -48,3 +49,38 @@ def test_gui_scenario_with_mock_traci():
         assert mock_traci.simulationStep.call_count == 5
         # Assert TraCI was properly closed
         mock_traci.close.assert_called_once()
+
+
+def test_gui_scenario_option_a_apprehension_removal():
+    """Verify that when suspect halts in containment, vehicle is removed and signal program is restored."""
+    mock_traci = MagicMock()
+    mock_traci.vehicle.getIDList.return_value = ["veh_0", "veh_1"]
+    # Vehicle speed is 0.0 m/s (halted) at close range (10m)
+    mock_traci.vehicle.getSpeed.return_value = 0.0
+    mock_traci.vehicle.getLaneID.return_value = "edge_0_0"
+    mock_traci.vehicle.getRoadID.return_value = "edge_0"
+    mock_traci.edge.getToJunction.return_value = "J_MOCK_1"
+    mock_traci.vehicle.getPosition.return_value = (500.0, 500.0)
+    mock_traci.lane.getLength.return_value = 300.0
+    mock_traci.vehicle.getLanePosition.return_value = 290.0
+    mock_traci.vehicle.getNextTLS.return_value = [("TLS_J1", 0, 10.0, "r")]
+    mock_traci.trafficlight.getIDList.return_value = ["TLS_J1"]
+    mock_traci.trafficlight.getRedYellowGreenState.return_value = "rrrr"
+
+    with patch.dict("sys.modules", {"traci": mock_traci}):
+        with patch("builtins.input", return_value=""):
+            run_gui_scenario(
+                cfg_file="dummy.sumocfg",
+                target_plate="UP32XY9999",
+                use_gui=False,
+                delay_ms=0,
+                max_steps=10,
+                auto_intercept_step=1,
+                manual_mode=False,
+            )
+
+            # Option A assertions:
+            # 1. Target vehicle was removed
+            mock_traci.vehicle.remove.assert_called_with("veh_0")
+            # 2. Traffic light program was restored to normal program "0"
+            mock_traci.trafficlight.setProgram.assert_called_with("TLS_J1", "0")
